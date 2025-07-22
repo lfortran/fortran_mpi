@@ -1,3 +1,6 @@
 *.mod
+temp_auto_push.bat
 *.o
 mpi_program
+.gitignore
+branch_structure.json
