@@ -18,6 +18,7 @@ module mpi
 
     integer, parameter :: MPI_COMM_WORLD = -1000
     integer, parameter :: MPI_COMM_NULL = -1001
+    integer, parameter :: MPI_COMM_SELF = -1003
     real(8), parameter :: MPI_IN_PLACE = -1002
     integer, parameter :: MPI_SUM = -2300
     integer, parameter :: MPI_MAX = -2301
@@ -42,6 +43,10 @@ module mpi
     interface MPI_Finalize
         module procedure MPI_Finalize_proc
     end interface MPI_Finalize
+
+    interface MPI_Initialized
+        module procedure MPI_Initialized_proc
+    end interface MPI_Initialized
 
     interface MPI_Comm_size
         module procedure MPI_Comm_size_proc
@@ -134,6 +139,10 @@ module mpi
         module procedure MPI_Sendrecv_proc
     end interface
 
+    interface MPI_Wait
+        module procedure MPI_Wait_proc
+    end interface
+
     interface MPI_Waitall
         module procedure MPI_Waitall_proc
     end interface
@@ -142,6 +151,10 @@ module mpi
         module procedure MPI_Allgatherv_int
         module procedure MPI_Allgatherv_real
     end interface MPI_Allgatherv
+
+    interface MPI_Scatter
+        module procedure MPI_Scatter_real
+    end interface MPI_Scatter
 
     interface MPI_Ssend
         module procedure MPI_Ssend_proc
@@ -171,6 +184,10 @@ module mpi
         module procedure MPI_Reduce_scalar_int
     end interface
 
+    interface MPI_Exscan
+        module procedure MPI_Exscan_scalar_int
+    end interface MPI_Exscan
+
     contains
 
     integer(kind=MPI_HANDLE_KIND) function handle_mpi_op_f2c(op_f) result(c_op)
@@ -188,10 +205,12 @@ module mpi
     end function
 
     integer(kind=MPI_HANDLE_KIND) function handle_mpi_comm_f2c(comm_f) result(c_comm)
-        use mpi_c_bindings, only: c_mpi_comm_size, c_mpi_comm_f2c, c_mpi_comm_world
+        use mpi_c_bindings, only: c_mpi_comm_size, c_mpi_comm_f2c, c_mpi_comm_world, c_mpi_comm_self
         integer, intent(in) :: comm_f
         if (comm_f == MPI_COMM_WORLD) then
             c_comm = c_mpi_comm_world
+        else if (comm_f == MPI_COMM_SELF) then
+            c_comm = c_mpi_comm_self
         else
             c_comm = c_mpi_comm_f2c(comm_f)
         end if
@@ -280,6 +299,24 @@ module mpi
             print *, "MPI_Init_thread failed with error code: ", local_ierr
         end if
     end subroutine MPI_Init_thread_proc
+
+    subroutine MPI_Initialized_proc(flag, ierr)
+        use mpi_c_bindings, only: c_mpi_initialized
+        use iso_c_binding, only: c_int
+        logical, intent(out) :: flag
+        integer, optional, intent(out) :: ierr
+        integer(c_int) :: c_flag
+        integer(c_int) :: local_ierr
+
+        local_ierr = c_mpi_initialized(c_flag)
+        flag = (c_flag /= 0)
+
+        if (present(ierr)) then
+            ierr = int(local_ierr)
+        else if (local_ierr /= MPI_SUCCESS) then
+            print *, "MPI_Initialized failed with error code: ", local_ierr
+        end if
+    end subroutine MPI_Initialized_proc
 
     subroutine MPI_Finalize_proc(ierr)
         use mpi_c_bindings, only: c_mpi_finalize
@@ -1144,6 +1181,35 @@ module mpi
         end if
     end subroutine MPI_Gatherv_character
 
+    subroutine MPI_Wait_proc(request, status, ierror)
+        use iso_c_binding, only: c_int, c_ptr, c_loc
+        use mpi_c_bindings, only: c_mpi_wait, c_mpi_request_f2c, c_mpi_request_c2f, c_mpi_status_c2f
+        integer, intent(inout) :: request
+        integer, intent(out) :: status(MPI_STATUS_SIZE)
+        integer, optional, intent(out) :: ierror
+        integer(kind=MPI_HANDLE_KIND) :: c_request
+        integer(c_int) :: local_ierr, status_ierr
+        type(c_ptr) :: c_status
+        integer(c_int), dimension(MPI_STATUS_SIZE), target :: tmp_status
+
+        c_request = c_mpi_request_f2c(request)
+        c_status = c_loc(tmp_status)
+
+        local_ierr = c_mpi_wait(c_request, c_status)
+
+        request = c_mpi_request_c2f(c_request)
+
+        if (local_ierr == MPI_SUCCESS) then
+            status_ierr = c_mpi_status_c2f(c_status, status)
+        end if
+
+        if (present(ierror)) then
+            ierror = local_ierr
+        else if (local_ierr /= MPI_SUCCESS) then
+            print *, "MPI_Wait failed with error code: ", local_ierr
+        end if
+    end subroutine MPI_Wait_proc
+
     subroutine MPI_Waitall_proc(count, array_of_requests, array_of_statuses, ierror)
         use iso_c_binding, only: c_int, c_ptr
         use mpi_c_bindings, only: c_mpi_waitall, c_mpi_request_f2c, c_mpi_request_c2f, c_mpi_status_c2f, c_mpi_statuses_ignore
@@ -1268,6 +1334,40 @@ module mpi
         end if
 
     end subroutine MPI_Allgatherv_real
+
+    subroutine MPI_Scatter_real(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
+                                recvtype, root, comm, ierror)
+        use iso_c_binding, only: c_int, c_ptr, c_loc
+        use mpi_c_bindings, only: c_mpi_scatter
+        real(8), dimension(:), intent(in), target :: sendbuf
+        integer, intent(in) :: sendcount
+        integer, intent(in) :: sendtype
+        real(8), dimension(:), intent(out), target :: recvbuf
+        integer, intent(in) :: recvcount
+        integer, intent(in) :: recvtype
+        integer, intent(in) :: root
+        integer, intent(in) :: comm
+        integer, optional, intent(out) :: ierror
+        integer(kind=MPI_HANDLE_KIND) :: c_sendtype, c_recvtype, c_comm
+        type(c_ptr) :: c_sendbuf, c_recvbuf
+        integer(c_int) :: local_ierr
+
+        c_sendbuf = c_loc(sendbuf)
+        c_recvbuf = c_loc(recvbuf)
+        c_sendtype = handle_mpi_datatype_f2c(sendtype)
+        c_recvtype = handle_mpi_datatype_f2c(recvtype)
+        c_comm = handle_mpi_comm_f2c(comm)
+
+        local_ierr = c_mpi_scatter(c_sendbuf, sendcount, c_sendtype, &
+                                   c_recvbuf, recvcount, c_recvtype, &
+                                   root, c_comm)
+
+        if (present(ierror)) then
+            ierror = local_ierr
+        else if (local_ierr /= MPI_SUCCESS) then
+            print *, "MPI_Scatter failed with error code: ", local_ierr
+        end if
+    end subroutine MPI_Scatter_real
 
     subroutine MPI_Ssend_proc(buf, count, datatype, dest, tag, comm, ierror)
         use iso_c_binding, only: c_int, c_ptr
@@ -1420,6 +1520,34 @@ module mpi
             end if
         end if
     end subroutine
+
+    subroutine MPI_Exscan_scalar_int(sendbuf, recvbuf, count, datatype, op, comm, ierror)
+        use mpi_c_bindings, only: c_mpi_exscan
+        use iso_c_binding, only: c_int, c_ptr, c_loc
+        integer, target, intent(in)  :: sendbuf
+        integer, target, intent(out) :: recvbuf
+        integer, intent(in)  :: count, datatype, op, comm
+        integer, optional, intent(out) :: ierror
+
+        integer(kind=MPI_HANDLE_KIND) :: c_comm, c_dtype, c_op
+        type(c_ptr)    :: c_sendbuf, c_recvbuf
+        integer(c_int) :: local_ierr
+
+        c_comm = handle_mpi_comm_f2c(comm)
+        c_dtype = handle_mpi_datatype_f2c(datatype)
+        c_op = handle_mpi_op_f2c(op)
+
+        c_sendbuf = c_loc(sendbuf)
+        c_recvbuf = c_loc(recvbuf)
+
+        local_ierr = c_mpi_exscan(c_sendbuf, c_recvbuf, count, c_dtype, c_op, c_comm)
+
+        if (present(ierror)) then
+            ierror = local_ierr
+        else if (local_ierr /= MPI_SUCCESS) then
+            print *, "MPI_Exscan failed with error code: ", local_ierr
+        end if
+    end subroutine MPI_Exscan_scalar_int
 
     subroutine MPI_Reduce_scalar_int(sendbuf, recvbuf, count, datatype, op, root, comm, ierror)
         use mpi_c_bindings, only: c_mpi_reduce
