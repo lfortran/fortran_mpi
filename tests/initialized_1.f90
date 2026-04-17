@@ -1,5 +1,5 @@
 program initialized_1
-    use mpi
+    use mpi, only: MPI_Init, MPI_Initialized, MPI_Finalize, MPI_SUCCESS
     implicit none
     integer :: ierr
     logical :: flag

@@ -1,5 +1,7 @@
 program scatter_1
-    use mpi
+    use mpi, only: MPI_Init, MPI_Finalize, MPI_Comm_rank, MPI_Comm_size, &
+                   MPI_Scatter, MPI_COMM_WORLD, MPI_DOUBLE_PRECISION, &
+                   MPI_SUCCESS
     implicit none
 
     integer :: ierr, rank, nprocs, root

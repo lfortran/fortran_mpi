@@ -1,5 +1,8 @@
 program wait_1
-    use mpi
+    use mpi, only: MPI_Init, MPI_Finalize, MPI_Comm_rank, MPI_Comm_size, &
+                   MPI_Isend, MPI_Irecv, MPI_Wait, &
+                   MPI_COMM_WORLD, MPI_DOUBLE_PRECISION, &
+                   MPI_STATUS_SIZE, MPI_SUCCESS
     implicit none
 
     integer, parameter :: lbuf = 100

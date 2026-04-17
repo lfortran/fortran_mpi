@@ -217,10 +217,14 @@ module mpi
     end function handle_mpi_comm_f2c
 
     integer(kind=MPI_HANDLE_KIND) function handle_mpi_comm_c2f(comm_c) result(f_comm)
-        use mpi_c_bindings, only: c_mpi_comm_c2f, c_mpi_comm_null
+        use mpi_c_bindings, only: c_mpi_comm_c2f, c_mpi_comm_null, c_mpi_comm_world, c_mpi_comm_self
         integer(kind=mpi_handle_kind), intent(in) :: comm_c
         if (comm_c == c_mpi_comm_null) then
             f_comm = MPI_COMM_NULL
+        else if (comm_c == c_mpi_comm_world) then
+            f_comm = MPI_COMM_WORLD
+        else if (comm_c == c_mpi_comm_self) then
+            f_comm = MPI_COMM_SELF
         else
             f_comm = c_mpi_comm_c2f(comm_c)
         end if
@@ -312,7 +316,7 @@ module mpi
         flag = (c_flag /= 0)
 
         if (present(ierr)) then
-            ierr = int(local_ierr)
+            ierr = local_ierr
         else if (local_ierr /= MPI_SUCCESS) then
             print *, "MPI_Initialized failed with error code: ", local_ierr
         end if
@@ -1201,6 +1205,9 @@ module mpi
 
         if (local_ierr == MPI_SUCCESS) then
             status_ierr = c_mpi_status_c2f(c_status, status)
+            if (status_ierr /= MPI_SUCCESS) then
+                print *, "MPI_Status_c2f (from MPI_Wait) failed with error code: ", status_ierr
+            end if
         end if
 
         if (present(ierror)) then
@@ -1338,11 +1345,11 @@ module mpi
     subroutine MPI_Scatter_real(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
                                 recvtype, root, comm, ierror)
         use iso_c_binding, only: c_int, c_ptr, c_loc
-        use mpi_c_bindings, only: c_mpi_scatter
-        real(8), dimension(:), intent(in), target :: sendbuf
+        use mpi_c_bindings, only: c_mpi_scatter, c_mpi_in_place
+        real(8), dimension(*), intent(in), target :: sendbuf
         integer, intent(in) :: sendcount
         integer, intent(in) :: sendtype
-        real(8), dimension(:), intent(out), target :: recvbuf
+        real(8), dimension(*), intent(out), target :: recvbuf
         integer, intent(in) :: recvcount
         integer, intent(in) :: recvtype
         integer, intent(in) :: root
@@ -1352,7 +1359,11 @@ module mpi
         type(c_ptr) :: c_sendbuf, c_recvbuf
         integer(c_int) :: local_ierr
 
-        c_sendbuf = c_loc(sendbuf)
+        if (sendbuf(1) == MPI_IN_PLACE) then
+            c_sendbuf = c_MPI_IN_PLACE
+        else
+            c_sendbuf = c_loc(sendbuf)
+        end if
         c_recvbuf = c_loc(recvbuf)
         c_sendtype = handle_mpi_datatype_f2c(sendtype)
         c_recvtype = handle_mpi_datatype_f2c(recvtype)

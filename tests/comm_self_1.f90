@@ -1,5 +1,6 @@
 program comm_self_1
-    use mpi
+    use mpi, only: MPI_Init, MPI_Finalize, MPI_Comm_rank, MPI_Comm_size, &
+                   MPI_Barrier, MPI_COMM_SELF, MPI_SUCCESS
     implicit none
     integer :: ierr, rank, size
 
