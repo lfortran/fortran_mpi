@@ -11,6 +11,8 @@ module mpi
     integer, parameter :: MPI_REAL8 = -10014
     integer, parameter :: MPI_CHARACTER = -10003
     integer, parameter :: MPI_LOGICAL = -10005
+    integer, parameter :: MPI_FLOAT = -10013         ! alias of MPI_REAL4 (C name)
+    integer, parameter :: MPI_DOUBLE = -10014        ! alias of MPI_REAL8 (C name)
 
     integer, parameter :: MPI_COMM_TYPE_SHARED = 1
     integer, parameter :: MPI_PROC_NULL = -1
