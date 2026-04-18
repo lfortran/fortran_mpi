@@ -26,6 +26,7 @@ module mpi_c_bindings
 
     integer(kind=MPI_HANDLE_KIND), bind(C, name="c_MPI_COMM_WORLD") :: c_mpi_comm_world
     integer(kind=MPI_HANDLE_KIND), bind(C, name="c_MPI_COMM_NULL") :: c_mpi_comm_null
+    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_MPI_COMM_SELF") :: c_mpi_comm_self
 
     interface
 
@@ -106,6 +107,12 @@ module mpi_c_bindings
         integer(c_int) function c_mpi_finalize() bind(C, name="MPI_Finalize")
             use iso_c_binding, only : c_int
         end function c_mpi_finalize
+
+        function c_mpi_initialized(flag) bind(C, name="MPI_Initialized")
+            use iso_c_binding, only: c_int
+            integer(c_int), intent(out) :: flag
+            integer(c_int) :: c_mpi_initialized
+        end function c_mpi_initialized
 
         function c_mpi_comm_size(comm, size) bind(C, name="MPI_Comm_size")
             use iso_c_binding, only: c_int, c_ptr
@@ -239,6 +246,13 @@ module mpi_c_bindings
             integer(c_int) :: c_mpi_sendrecv
         end function c_mpi_sendrecv
 
+        function c_mpi_wait(request, status) bind(C, name="MPI_Wait")
+            use iso_c_binding, only: c_int, c_ptr
+            integer(kind=MPI_HANDLE_KIND), intent(inout) :: request
+            type(c_ptr), value :: status
+            integer(c_int) :: c_mpi_wait
+        end function c_mpi_wait
+
         function c_mpi_waitall(count, requests, statuses) bind(C, name="MPI_Waitall")
             use iso_c_binding, only: c_int, c_ptr
             integer(c_int), value :: count
@@ -279,6 +293,20 @@ module mpi_c_bindings
             integer(kind=MPI_HANDLE_KIND), intent(out) :: comm_cart
             integer(c_int) :: c_mpi_cart_create
         end function
+
+        function c_mpi_scatter(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
+                               recvtype, root, comm) bind(C, name="MPI_Scatter")
+            use iso_c_binding, only: c_int, c_ptr
+            type(c_ptr), value :: sendbuf
+            integer(c_int), value :: sendcount
+            integer(kind=MPI_HANDLE_KIND), value :: sendtype
+            type(c_ptr), value :: recvbuf
+            integer(c_int), value :: recvcount
+            integer(kind=MPI_HANDLE_KIND), value :: recvtype
+            integer(c_int), value :: root
+            integer(kind=MPI_HANDLE_KIND), value :: comm
+            integer(c_int) :: c_mpi_scatter
+        end function c_mpi_scatter
 
         function c_mpi_allgatherv(sendbuf, sendcount, sendtype, recvbuf, recvcounts, &
                                   displs, recvtype, comm) bind(C, name="MPI_Allgatherv")
@@ -324,6 +352,18 @@ module mpi_c_bindings
             integer(kind=MPI_HANDLE_KIND), intent(out) :: newcomm
             integer(c_int) :: c_mpi_cart_sub
         end function
+
+        function c_mpi_exscan(sendbuf, recvbuf, count, c_dtype, c_op, c_comm) &
+            bind(C, name="MPI_Exscan")
+            use iso_c_binding, only: c_ptr, c_int
+            type(c_ptr), value :: sendbuf
+            type(c_ptr), value :: recvbuf
+            integer(c_int), value :: count
+            integer(kind=MPI_HANDLE_KIND), value :: c_dtype
+            integer(kind=MPI_HANDLE_KIND), value :: c_op
+            integer(kind=MPI_HANDLE_KIND), value :: c_comm
+            integer(c_int) :: c_mpi_exscan
+        end function c_mpi_exscan
 
         function c_mpi_reduce(sendbuf, recvbuf, count, c_dtype, c_op, root, c_comm) &
             bind(C, name="MPI_Reduce")
