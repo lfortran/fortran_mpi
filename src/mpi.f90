@@ -26,7 +26,16 @@ module mpi
     integer, parameter :: MPI_MAX = -2301
     integer, parameter :: MPI_LOR = -2302
     integer, parameter :: MPI_INFO_NULL = -2000
+    ! MPI_STATUS_SIZE must match sizeof(MPI_Status)/sizeof(int) of the underlying
+    ! C library. Open MPI 5.x uses a 6-int (24-byte) MPI_Status, whereas MPICH
+    ! and older Open MPI releases used a 5-int (20-byte) layout. If the two
+    ! disagree the native MPI_Recv/etc. will write past the Fortran status
+    ! buffer and corrupt the surrounding stack.
+#ifdef OPEN_MPI
+    integer, parameter :: MPI_STATUS_SIZE = 6
+#else
     integer, parameter :: MPI_STATUS_SIZE = 5
+#endif
     integer :: MPI_STATUS_IGNORE = 0
     ! NOTE: I've no idea for how to implement this, refer
     ! see section 2.5.4 page 21 of mpi40-report.pdf
