@@ -13,7 +13,8 @@ gfortran = "15.*"
 [feature.flang]
 platforms = ["linux-64"]
 [feature.flang.dependencies]
-flang_linux-64 = "*"
+# flang 23 on conda-forge cannot find its intrinsic modules (iso_c_binding)
+flang_linux-64 = "22.*"
 
 [feature.ifx]
 platforms = ["linux-64"]
