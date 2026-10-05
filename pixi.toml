@@ -1,0 +1,62 @@
+[workspace]
+channels = ["conda-forge"]
+name = "fortran_mpi"
+platforms = ["osx-arm64", "linux-64"]
+
+# One environment per compiler and MPI.
+
+[feature.gfortran.dependencies]
+# mpich-mpifort is built with gfortran 15, and mpif90 needs its mpi.mod
+gfortran = "15.*"
+
+# conda-forge has flang and ifx for Linux only
+[feature.flang]
+platforms = ["linux-64"]
+[feature.flang.dependencies]
+flang_linux-64 = "*"
+
+[feature.ifx]
+platforms = ["linux-64"]
+[feature.ifx.dependencies]
+ifx_linux-64 = "*"
+
+[feature.lfortran.dependencies]
+lfortran = "*"
+
+[feature.openmpi.dependencies]
+openmpi = "*"
+
+# Open MPI's handles are pointers, MPICH's integers: see src/mpi_c_bindings.f90
+[feature.openmpi.activation.env]
+MPI_DEFS = "-DOPEN_MPI=yes"
+# Shared memory only: probing the network transports costs a second per run
+OMPI_MCA_pml = "ob1"
+OMPI_MCA_btl = "self,sm"
+
+[feature.mpich.dependencies]
+mpich = "*"
+
+# mpif90, for test-without-wrappers
+[feature.openmpi-fortran.dependencies]
+openmpi-mpifort = "*"
+
+[feature.mpich-fortran.dependencies]
+mpich-mpifort = "*"
+
+# The compiler is an argument, e.g. `pixi run -e lfortran-mpich test 'lfortran --cpp'`,
+# since the compiler packages set FC on activation.
+[tasks]
+test = { args = ["fc"], cmd = "FC=\"{{ fc }} $MPI_DEFS\" ./run_tests.sh", cwd = "tests" }
+test-without-wrappers = { cmd = "./run_tests.sh --without-wrappers", cwd = "tests" }
+pot3d = { args = ["fc"], cmd = "FC=\"{{ fc }} $MPI_DEFS\" ./build_and_run_gfortran.sh", cwd = "tests/pot3d" }
+pot3d-lfortran = { args = ["fc"], cmd = "FC=\"{{ fc }} $MPI_DEFS\" ./build_and_run_lfortran.sh", cwd = "tests/pot3d" }
+
+[environments]
+gfortran-openmpi = ["gfortran", "openmpi", "openmpi-fortran"]
+gfortran-mpich = ["gfortran", "mpich", "mpich-fortran"]
+flang-openmpi = ["flang", "openmpi"]
+flang-mpich = ["flang", "mpich"]
+ifx-openmpi = ["ifx", "openmpi"]
+ifx-mpich = ["ifx", "mpich"]
+lfortran-openmpi = ["lfortran", "openmpi"]
+lfortran-mpich = ["lfortran", "mpich"]

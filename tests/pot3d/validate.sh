@@ -29,6 +29,9 @@ for np in 1 2 4; do
   # with 1 or 2 ranks
   if [[ "$MPI_TYPE" == "openmpi" && $np -gt 2 ]]; then
     MPIEXEC_ARGS="--oversubscribe"
+  elif [[ "$MPI_TYPE" == "mpich" ]]; then
+    # otherwise Hydra can spend seconds resolving the hostname (macOS)
+    MPIEXEC_ARGS="-hosts localhost"
   else
     MPIEXEC_ARGS=""
   fi
