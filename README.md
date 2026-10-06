@@ -37,7 +37,8 @@ This project currently supports MPI routines such as `MPI_Init`, `MPI_Bcast`, `M
     pixi run -e lfortran-mpich test 'lfortran --cpp'
     pixi run -e gfortran-openmpi test 'gfortran -cpp -O3 -march=native'
     pixi run -e gfortran-openmpi test-without-wrappers
-    pixi run -e flang-mpich pot3d 'flang -cpp'
+    pixi run -e flang-mpich test 'flang -cpp'
+    pixi run -e gfortran-mpich pot3d 'gfortran -cpp'
     pixi run -e lfortran-openmpi pot3d-lfortran 'lfortran --cpp'
     ```
   With Open MPI, pixi also passes `-DOPEN_MPI=yes` to the compiler.

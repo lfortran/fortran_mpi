@@ -23,7 +23,7 @@ else
 fi
 
 # A 3D array of the validation grid is 10 MB, more than the default stack, and
-# flang and ifx put array temporaries on the stack
+# ifx puts array temporaries on the stack
 ulimit -s hard
 
 for np in 1 2 4; do

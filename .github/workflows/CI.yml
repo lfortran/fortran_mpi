@@ -70,10 +70,12 @@ jobs:
       - name: Test with ${{ matrix.opt }}
         run: pixi run -e $ENV test "${{ matrix.fc }} ${{ matrix.opt }}"
 
-      # Unoptimized, POT3D takes half an hour on the macOS runners
+      # POT3D fails with flang, which runs the tests only. Unoptimized,
+      # POT3D takes half an hour on the macOS runners.
       - name: POT3D
-        if: runner.os == 'Linux'
+        if: matrix.compiler != 'flang' && runner.os == 'Linux'
         run: pixi run -e $ENV $POT3D "${{ matrix.fc }}"
 
       - name: POT3D with ${{ matrix.opt }}
+        if: matrix.compiler != 'flang'
         run: pixi run -e $ENV $POT3D "${{ matrix.fc }} ${{ matrix.opt }}"
