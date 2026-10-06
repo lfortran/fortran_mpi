@@ -41,7 +41,8 @@ This project currently supports MPI routines such as `MPI_Init`, `MPI_Bcast`, `M
     pixi run -e gfortran-mpich pot3d 'gfortran -cpp'
     pixi run -e lfortran-openmpi pot3d-lfortran 'lfortran --cpp'
     ```
-  With Open MPI, pixi also passes `-DOPEN_MPI=yes` to the compiler.
+  With Open MPI, pixi also passes `-DOPEN_MPI=yes` to the compiler. POT3D
+  with flang or ifx needs a larger stack, `ulimit -s unlimited`.
 
 ---
 

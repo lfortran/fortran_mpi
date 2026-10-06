@@ -37,12 +37,16 @@ jobs:
           - compiler: gfortran
             fc: gfortran -cpp
             opt: -O3 -march=native
+          # flang and ifx put automatic arrays on the stack, and POT3D's
+          # are larger than the default 8 MB
           - compiler: flang
             fc: flang -cpp
             opt: -O3 -march=native
+            stack: unlimited
           - compiler: ifx
             fc: ifx -fpp
             opt: -O3 -march=native
+            stack: unlimited
           - compiler: lfortran
             fc: lfortran --cpp
             opt: --fast
@@ -50,6 +54,7 @@ jobs:
     env:
       ENV: ${{ matrix.compiler }}-${{ matrix.mpi }}
       POT3D: ${{ matrix.pot3d || 'pot3d' }}
+      STACK: ${{ matrix.stack }}
     steps:
       - uses: actions/checkout@v4
 
@@ -70,10 +75,16 @@ jobs:
       - name: Test with ${{ matrix.opt }}
         run: pixi run -e $ENV test "${{ matrix.fc }} ${{ matrix.opt }}"
 
-      # Unoptimized, POT3D takes half an hour on the macOS runners
+      # On the macOS runners POT3D takes half an hour unoptimized, and with
+      # MPICH a quarter of an hour optimized
       - name: POT3D
         if: runner.os == 'Linux'
-        run: pixi run -e $ENV $POT3D "${{ matrix.fc }}"
+        run: |
+          [ -z "$STACK" ] || ulimit -s $STACK
+          pixi run -e $ENV $POT3D "${{ matrix.fc }}"
 
       - name: POT3D with ${{ matrix.opt }}
-        run: pixi run -e $ENV $POT3D "${{ matrix.fc }} ${{ matrix.opt }}"
+        if: runner.os == 'Linux' || matrix.mpi != 'mpich'
+        run: |
+          [ -z "$STACK" ] || ulimit -s $STACK
+          pixi run -e $ENV $POT3D "${{ matrix.fc }} ${{ matrix.opt }}"
