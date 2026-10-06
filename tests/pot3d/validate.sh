@@ -22,6 +22,10 @@ else
   exit 1
 fi
 
+# A 3D array of the validation grid is 10 MB, more than the default stack, and
+# flang and ifx put array temporaries on the stack
+ulimit -s hard
+
 for np in 1 2 4; do
   rm -rf pot3d.log pot3d.out timing.out
 
@@ -39,7 +43,8 @@ for np in 1 2 4; do
 
   echo "Running POT3D with $np MPI rank..."
 
-  ${MPIEXEC} -np ${np} ${MPIEXEC_ARGS} ${POT3D_HOME}/bin/pot3d 1> pot3d.log 2>pot3d.err
+  ${MPIEXEC} -np ${np} ${MPIEXEC_ARGS} ${POT3D_HOME}/bin/pot3d 1> pot3d.log 2>pot3d.err \
+    || { cat pot3d.log pot3d.err; exit 1; }
   echo "Done!"
 
   runtime=($(tail -n 5 timing.out | head -n 1))

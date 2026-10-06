@@ -37,6 +37,10 @@ OMPI_MCA_btl = "self,sm"
 [feature.mpich.dependencies]
 mpich = "*"
 
+# On Linux MPICH runs on UCX: shared memory only, not the runner's network card
+[feature.mpich.activation.env]
+UCX_TLS = "self,sm"
+
 # mpif90, for test-without-wrappers
 [feature.openmpi-fortran.dependencies]
 openmpi-mpifort = "*"
