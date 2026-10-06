@@ -34,11 +34,9 @@ jobs:
           - os: macos-latest
             compiler: ifx
         include:
-          # pot3d is the POT3D task; flang and ifx run the tests only
           - compiler: gfortran
             fc: gfortran -cpp
             opt: -O3 -march=native
-            pot3d: pot3d
           - compiler: flang
             fc: flang -cpp
             opt: -O3 -march=native
@@ -51,6 +49,7 @@ jobs:
             pot3d: pot3d-lfortran
     env:
       ENV: ${{ matrix.compiler }}-${{ matrix.mpi }}
+      POT3D: ${{ matrix.pot3d || 'pot3d' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -73,9 +72,8 @@ jobs:
 
       # Unoptimized, POT3D takes half an hour on the macOS runners
       - name: POT3D
-        if: matrix.pot3d && runner.os == 'Linux'
-        run: pixi run -e $ENV ${{ matrix.pot3d }} "${{ matrix.fc }}"
+        if: runner.os == 'Linux'
+        run: pixi run -e $ENV $POT3D "${{ matrix.fc }}"
 
       - name: POT3D with ${{ matrix.opt }}
-        if: matrix.pot3d
-        run: pixi run -e $ENV ${{ matrix.pot3d }} "${{ matrix.fc }} ${{ matrix.opt }}"
+        run: pixi run -e $ENV $POT3D "${{ matrix.fc }} ${{ matrix.opt }}"

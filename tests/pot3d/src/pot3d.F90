@@ -4268,8 +4268,10 @@ subroutine cgsolve (x,r,N,ierr)
 !-----------------------------------------------------------------------
 !
 ! ****** Scratch space for the CG iteration vectors.
+! ****** Allocatable rather than automatic, since flang and ifx put
+! ****** automatic arrays on the stack, which they overflow.
 !
-      real(r_typ), dimension(N), target :: p,ap
+      real(r_typ), dimension(:), allocatable, target :: p,ap
 !
 !-----------------------------------------------------------------------
 !
@@ -4282,6 +4284,7 @@ subroutine cgsolve (x,r,N,ierr)
 !-----------------------------------------------------------------------
 !
       ncg=0
+      allocate (p(N),ap(N))
 !$omp target enter data map(alloc:p,ap)
 !
 ! ****** Get the norm of the RHS.
@@ -5185,7 +5188,7 @@ subroutine prec_inv (x)
 !-----------------------------------------------------------------------
 !
       real(r_typ), dimension(N) :: x
-      real(r_typ_pc), dimension(N) :: x_32
+      real(r_typ_pc), dimension(:), allocatable :: x_32
       integer :: i
 !
 !-----------------------------------------------------------------------
@@ -5216,6 +5219,7 @@ subroutine prec_inv (x)
 !
 ! ****** Convert input array to single precision.
 !
+        allocate (x_32(N))
         do i=1,N
           x_32(i) = real(x(i),r_typ_pc)
         enddo
