@@ -22,10 +22,6 @@ else
   exit 1
 fi
 
-# A 3D array of the validation grid is 10 MB, more than the default stack, and
-# ifx puts array temporaries on the stack
-ulimit -s hard
-
 for np in 1 2 4; do
   rm -rf pot3d.log pot3d.out timing.out
 
