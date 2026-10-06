@@ -1,3 +1,4 @@
+#!/bin/bash
 set -ex
 
 POT3D_HOME=$PWD
@@ -29,13 +30,17 @@ for np in 1 2 4; do
   # with 1 or 2 ranks
   if [[ "$MPI_TYPE" == "openmpi" && $np -gt 2 ]]; then
     MPIEXEC_ARGS="--oversubscribe"
+  elif [[ "$MPI_TYPE" == "mpich" ]]; then
+    # otherwise Hydra can spend seconds resolving the hostname (macOS)
+    MPIEXEC_ARGS="-hosts localhost"
   else
     MPIEXEC_ARGS=""
   fi
 
   echo "Running POT3D with $np MPI rank..."
 
-  ${MPIEXEC} -np ${np} ${MPIEXEC_ARGS} ${POT3D_HOME}/bin/pot3d 1> pot3d.log 2>pot3d.err
+  ${MPIEXEC} -np ${np} ${MPIEXEC_ARGS} ${POT3D_HOME}/bin/pot3d 1> pot3d.log 2>pot3d.err \
+    || { cat pot3d.log pot3d.err; exit 1; }
   echo "Done!"
 
   runtime=($(tail -n 5 timing.out | head -n 1))

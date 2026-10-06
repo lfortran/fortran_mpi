@@ -1,3 +1,7 @@
 *.mod
 *.o
 mpi_program
+
+# pixi environments
+.pixi/*
+!.pixi/config.toml

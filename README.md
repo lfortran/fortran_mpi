@@ -28,18 +28,21 @@ This project currently supports MPI routines such as `MPI_Init`, `MPI_Bcast`, `M
 - **MPI Library:**  
   This project supports OpenMPI and MPICH. Install the desired MPI library along with its development headers.
 
-- **Conda Environment (Optional):**  
-  It is recommended to create separate conda environments for MPICH and OpenMPI:
-  - For **MPICH**:
+- **Pixi (Optional):**  
+  [pixi](https://pixi.sh) provides an environment `<compiler>-<mpi>` for each
+  compiler (`gfortran`, `lfortran`, and on Linux also `flang` and `ifx`) and
+  MPI (`openmpi`, `mpich`), the same ones the CI uses. The compiler is passed
+  to the task:
     ```bash
-    conda create -n mpich_env mpich=4.3.0
-    conda activate mpich_env
+    pixi run -e lfortran-mpich test 'lfortran --cpp'
+    pixi run -e gfortran-openmpi test 'gfortran -cpp -O3 -march=native'
+    pixi run -e gfortran-openmpi test-without-wrappers
+    pixi run -e flang-mpich test 'flang -cpp'
+    pixi run -e gfortran-mpich pot3d 'gfortran -cpp'
+    pixi run -e lfortran-openmpi pot3d-lfortran 'lfortran --cpp'
     ```
-  - For **OpenMPI**:
-    ```bash
-    conda create -n openmpi_env openmpi=5.0.6
-    conda activate openmpi_env
-    ```
+  With Open MPI, pixi also passes `-DOPEN_MPI=yes` to the compiler. POT3D
+  with flang or ifx needs a larger stack, `ulimit -s unlimited`.
 
 ---
 
