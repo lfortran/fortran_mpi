@@ -9,7 +9,7 @@ module mpi
     integer, parameter :: MPI_DOUBLE_PRECISION = -10004
     integer, parameter :: MPI_REAL4 = -10013
     integer, parameter :: MPI_REAL8 = -10014
-    integer, parameter :: MPI_CHARACTER = -10003
+    integer, parameter :: MPI_CHARACTER = -10006
     integer, parameter :: MPI_LOGICAL = -10005
     integer, parameter :: MPI_FLOAT = -10013         ! alias of MPI_REAL4 (C name)
     integer, parameter :: MPI_DOUBLE = -10014        ! alias of MPI_REAL8 (C name)
@@ -86,6 +86,7 @@ module mpi
     interface MPI_Bcast
         module procedure MPI_Bcast_int_scalar
         module procedure MPI_Bcast_real_2D
+        module procedure MPI_Bcast_character
     end interface MPI_Bcast
 
     interface MPI_Allgather
@@ -540,6 +541,32 @@ module mpi
             end if
         end if
     end subroutine MPI_Bcast_int_scalar
+
+    subroutine MPI_Bcast_character(buffer, count, datatype, root, comm, ierror)
+        use mpi_c_bindings, only: c_mpi_bcast
+        use iso_c_binding, only: c_ptr, c_loc
+        character(len=*), target :: buffer
+        integer, intent(in) :: count, root
+        integer, intent(in) :: datatype
+        integer, intent(in) :: comm
+        integer, optional, intent(out) :: ierror
+        integer(kind=MPI_HANDLE_KIND) :: c_comm, c_datatype
+        integer :: local_ierr
+        type(c_ptr) :: buffer_ptr
+
+        c_comm = handle_mpi_comm_f2c(comm)
+        c_datatype = handle_mpi_datatype_f2c(datatype)
+        buffer_ptr = c_loc(buffer)
+        local_ierr = c_mpi_bcast(buffer_ptr, count, c_datatype, root, c_comm)
+
+        if (present(ierror)) then
+            ierror = local_ierr
+        else
+            if (local_ierr /= MPI_SUCCESS) then
+                print *, "MPI_Bcast_character failed with error code: ", local_ierr
+            end if
+        end if
+    end subroutine MPI_Bcast_character
 
     subroutine MPI_Bcast_real_2D(buffer, count, datatype, root, comm, ierror)
         use mpi_c_bindings, only: c_mpi_bcast, c_mpi_comm_f2c
