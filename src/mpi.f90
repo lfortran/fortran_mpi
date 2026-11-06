@@ -15,7 +15,13 @@ module mpi
     integer, parameter :: MPI_DOUBLE = -10014        ! alias of MPI_REAL8 (C name)
 
     integer, parameter :: MPI_COMM_TYPE_SHARED = 1
+    ! Must equal the C library's MPI_PROC_NULL, since ranks returned by C
+    ! (e.g. MPI_Cart_shift) and ranks passed to C are not translated.
+#ifdef OPEN_MPI
+    integer, parameter :: MPI_PROC_NULL = -2
+#else
     integer, parameter :: MPI_PROC_NULL = -1
+#endif
     integer, parameter :: MPI_SUCCESS = 0
 
     integer, parameter :: MPI_COMM_WORLD = -1000
