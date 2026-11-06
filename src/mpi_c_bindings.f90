@@ -1,5 +1,5 @@
 module mpi_c_bindings
-    use iso_c_binding, only: c_ptr
+    use iso_c_binding, only: c_ptr, c_int
     implicit none
 
 #ifdef OPEN_MPI
@@ -9,24 +9,41 @@ module mpi_c_bindings
 #endif
 
     integer, parameter :: mpi_handle_kind = MPI_HANDLE_KIND
-    type(c_ptr), bind(C, name="c_MPI_STATUSES_IGNORE") :: c_mpi_statuses_ignore
+
+    ! Native values of the MPI constants, defined in src/mpi_constants.c.
+    ! Each handle table is indexed by the MPI-5 ABI value minus the first
+    ! value of its range; the sizes must match src/mpi_constants.c.
+    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_op_table") :: c_op_table(0:31)
+    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_comm_table") :: c_comm_table(0:2)
+    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_group_table") :: c_group_table(0:1)
+    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_info_table") :: c_info_table(0:0)
+    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_request_table") :: c_request_table(0:0)
+    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_datatype_table") :: c_datatype_table(0:255)
+
+    integer(c_int), bind(C, name="c_MPI_ANY_SOURCE") :: c_mpi_any_source
+    integer(c_int), bind(C, name="c_MPI_ANY_TAG") :: c_mpi_any_tag
+    integer(c_int), bind(C, name="c_MPI_PROC_NULL") :: c_mpi_proc_null
+    integer(c_int), bind(C, name="c_MPI_ROOT") :: c_mpi_root
+    integer(c_int), bind(C, name="c_MPI_UNDEFINED") :: c_mpi_undefined
+
+    integer(c_int), bind(C, name="c_MPI_THREAD_SINGLE") :: c_mpi_thread_single
+    integer(c_int), bind(C, name="c_MPI_THREAD_FUNNELED") :: c_mpi_thread_funneled
+    integer(c_int), bind(C, name="c_MPI_THREAD_SERIALIZED") :: c_mpi_thread_serialized
+    integer(c_int), bind(C, name="c_MPI_THREAD_MULTIPLE") :: c_mpi_thread_multiple
+
+    integer(c_int), bind(C, name="c_MPI_COMM_TYPE_SHARED") :: c_mpi_comm_type_shared
+
+    integer(c_int), bind(C, name="c_MPI_MAX_OBJECT_NAME") :: c_mpi_max_object_name
+
     type(c_ptr), bind(C, name="c_MPI_IN_PLACE") :: c_mpi_in_place
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_MPI_INFO_NULL") :: c_mpi_info_null
+    type(c_ptr), bind(C, name="c_MPI_STATUSES_IGNORE") :: c_mpi_statuses_ignore
 
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_MPI_DOUBLE") :: c_mpi_double
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_MPI_FLOAT") :: c_mpi_float
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_MPI_REAL") :: c_mpi_real
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_MPI_INT") :: c_mpi_int
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_MPI_LOGICAL") :: c_mpi_logical
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_MPI_CHARACTER") :: c_mpi_character
+    integer(c_int), bind(C, name="c_sizeof_MPI_Status") :: c_sizeof_mpi_status
+    integer(c_int), bind(C, name="c_offsetof_MPI_SOURCE") :: c_offsetof_mpi_source
+    integer(c_int), bind(C, name="c_offsetof_MPI_TAG") :: c_offsetof_mpi_tag
+    integer(c_int), bind(C, name="c_offsetof_MPI_ERROR") :: c_offsetof_mpi_error
 
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_MPI_SUM") :: c_mpi_sum
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_MPI_MAX") :: c_mpi_max
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_MPI_LOR") :: c_mpi_lor
-
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_MPI_COMM_WORLD") :: c_mpi_comm_world
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_MPI_COMM_NULL") :: c_mpi_comm_null
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_MPI_COMM_SELF") :: c_mpi_comm_self
+    integer(c_int), bind(C, name="c_sizeof_MPI_Comm") :: c_sizeof_mpi_comm
 
     interface
 
@@ -54,18 +71,17 @@ module mpi_c_bindings
             integer(kind=MPI_HANDLE_KIND) :: c_mpi_request_f2c
         end function c_mpi_request_f2c
 
-        function c_mpi_status_c2f(c_status, f_status) bind(C, name="MPI_Status_c2f")
-            use iso_c_binding, only: c_ptr, c_int
-            type(c_ptr) :: c_status
-            integer(c_int) :: f_status(*)  ! assumed-size array
-            integer(c_int) :: c_mpi_status_c2f
-        end function c_mpi_status_c2f
-
         function c_mpi_op_f2c(op_f) bind(C, name="MPI_Op_f2c")
             use iso_c_binding, only: c_ptr, c_int
             integer(c_int), value :: op_f
             integer(kind=MPI_HANDLE_KIND) :: c_mpi_op_f2c
         end function c_mpi_op_f2c
+
+        function c_mpi_type_f2c(datatype_f) bind(C, name="MPI_Type_f2c")
+            use iso_c_binding, only: c_int
+            integer(c_int), value :: datatype_f
+            integer(kind=MPI_HANDLE_KIND) :: c_mpi_type_f2c
+        end function c_mpi_type_f2c
 
         function c_mpi_info_f2c(info_f) bind(C, name="MPI_Info_f2c")
             use iso_c_binding, only: c_int, c_ptr
@@ -395,7 +411,7 @@ module mpi_c_bindings
 
         function c_mpi_group_free(group) bind(C, name="MPI_Group_free")
             use iso_c_binding, only: c_ptr, c_int
-            integer(kind=MPI_HANDLE_KIND), intent(in) :: group
+            integer(kind=MPI_HANDLE_KIND), intent(inout) :: group
             integer(c_int) :: c_mpi_group_free
         end function c_mpi_group_free
 
@@ -421,6 +437,22 @@ module mpi_c_bindings
             integer(kind=MPI_HANDLE_KIND), intent(inout) :: comm
             integer(c_int) :: c_mpi_comm_free
         end function c_mpi_comm_free
+
+        function c_mpi_comm_get_name(comm, comm_name, resultlen) bind(C, name="MPI_Comm_get_name")
+            use iso_c_binding, only: c_int, c_char
+            integer(kind=MPI_HANDLE_KIND), value :: comm
+            character(kind=c_char), intent(out) :: comm_name(*)
+            integer(c_int), intent(out) :: resultlen
+            integer(c_int) :: c_mpi_comm_get_name
+        end function c_mpi_comm_get_name
+
+        function c_mpi_type_get_name(datatype, type_name, resultlen) bind(C, name="MPI_Type_get_name")
+            use iso_c_binding, only: c_int, c_char
+            integer(kind=MPI_HANDLE_KIND), value :: datatype
+            character(kind=c_char), intent(out) :: type_name(*)
+            integer(c_int), intent(out) :: resultlen
+            integer(c_int) :: c_mpi_type_get_name
+        end function c_mpi_type_get_name
 
     end interface
 end module mpi_c_bindings
