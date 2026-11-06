@@ -92,21 +92,26 @@ module mpi
     interface MPI_Bcast
         module procedure MPI_Bcast_int_scalar
         module procedure MPI_Bcast_real_2D
+        module procedure MPI_Bcast_real4_2D
         module procedure MPI_Bcast_character
     end interface MPI_Bcast
 
     interface MPI_Allgather
         module procedure MPI_Allgather_int
         module procedure MPI_Allgather_real
+        module procedure MPI_Allgather_real4
     end interface MPI_Allgather
 
     interface MPI_Isend
         module procedure MPI_Isend_2d
         module procedure MPI_Isend_3d
+        module procedure MPI_Isend_2d_real4
+        module procedure MPI_Isend_3d_real4
     end interface
 
     interface MPI_IRecv
         module procedure MPI_IRecv_proc
+        module procedure MPI_Irecv_real4_proc
     end interface
 
     interface MPI_Allreduce
@@ -115,6 +120,10 @@ module mpi
         module procedure MPI_Allreduce_1D_real_proc
         module procedure MPI_Allreduce_1D_int_proc
         module procedure MPI_Allreduce_scalar_logical_proc
+        module procedure MPI_Allreduce_scalar_real4
+        module procedure MPI_Allreduce_scalar_in_place_real4
+        module procedure MPI_Allreduce_1D_recv_real4_proc
+        module procedure MPI_Allreduce_1D_real4_proc
     end interface
 
     interface MPI_Gatherv
@@ -142,6 +151,8 @@ module mpi
     interface MPI_Recv
         module procedure MPI_Recv_StatusArray_proc
         module procedure MPI_Recv_StatusIgnore_proc    
+        module procedure MPI_Recv_StatusArray_real4_proc
+        module procedure MPI_Recv_StatusIgnore_real4_proc
     end interface
 
     interface MPI_Sendrecv
@@ -167,6 +178,7 @@ module mpi
 
     interface MPI_Ssend
         module procedure MPI_Ssend_proc
+        module procedure MPI_Ssend_real4_proc
     end interface
 
     interface MPI_Cart_create
@@ -601,6 +613,33 @@ module mpi
         end if
     end subroutine MPI_Bcast_real_2D
 
+    subroutine MPI_Bcast_real4_2D(buffer, count, datatype, root, comm, ierror)
+        use mpi_c_bindings, only: c_mpi_bcast, c_mpi_comm_f2c
+        use iso_c_binding, only: c_int, c_ptr, c_loc
+        real(4), dimension(:, :), target :: buffer
+        integer, intent(in) :: count, root
+        integer, intent(in) :: datatype
+        integer, intent(in) :: comm
+        integer, optional, intent(out) :: ierror
+        integer(kind=MPI_HANDLE_KIND) :: c_comm, c_datatype
+        integer :: local_ierr
+        type(c_ptr) :: buffer_ptr
+
+        c_comm = handle_mpi_comm_f2c(comm)
+
+        c_datatype = handle_mpi_datatype_f2c(datatype)
+        buffer_ptr = c_loc(buffer)
+        local_ierr = c_mpi_bcast(buffer_ptr, count, c_datatype, root, c_comm)
+
+        if (present(ierror)) then
+            ierror = local_ierr
+        else
+            if (local_ierr /= MPI_SUCCESS) then
+                print *, "MPI_Bcast_real4_2D failed with error code: ", local_ierr
+            end if
+        end if
+    end subroutine MPI_Bcast_real4_2D
+
     subroutine MPI_Allgather_int(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm, ierror)
         use iso_c_binding, only: c_int, c_ptr, c_loc
         use mpi_c_bindings, only: c_mpi_allgather_int
@@ -663,6 +702,37 @@ module mpi
         end if
     end subroutine
 
+    subroutine MPI_Allgather_real4(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm, ierror)
+        use iso_c_binding, only: c_int, c_ptr, c_loc
+        use mpi_c_bindings, only: c_mpi_allgather_real
+        real(4), dimension(:), intent(in), target :: sendbuf
+        real(4), dimension(:, :), intent(out), target :: recvbuf
+        integer, intent(in) :: sendcount, recvcount
+        integer, intent(in) :: sendtype, recvtype
+        integer, intent(in) :: comm
+        integer, optional, intent(out) :: ierror
+        integer(kind=MPI_HANDLE_KIND) :: c_comm
+        integer(c_int) :: local_ierr
+        integer(kind=MPI_HANDLE_KIND) :: c_sendtype, c_recvtype
+        type(c_ptr) :: sendbuf_ptr, recvbuf_ptr
+
+        c_comm = handle_mpi_comm_f2c(comm)
+
+        c_sendtype = handle_mpi_datatype_f2c(sendtype)
+        c_recvtype = handle_mpi_datatype_f2c(recvtype)
+        sendbuf_ptr = c_loc(sendbuf)
+        recvbuf_ptr = c_loc(recvbuf)
+        local_ierr = c_mpi_allgather_real(sendbuf_ptr, sendcount, c_sendtype, recvbuf_ptr, recvcount, c_recvtype, c_comm)
+
+        if (present(ierror)) then
+            ierror = local_ierr
+        else
+            if (local_ierr /= MPI_SUCCESS) then
+                print *, "MPI_Allgather_real4 failed with error code: ", local_ierr
+            end if
+        end if
+    end subroutine
+
     subroutine MPI_Isend_2d(buf, count, datatype, dest, tag, comm, request, ierror)
         use iso_c_binding, only: c_int, c_ptr, c_loc
         use mpi_c_bindings, only: c_mpi_isend, c_mpi_request_c2f
@@ -688,6 +758,37 @@ module mpi
         else
             if (local_ierr /= MPI_SUCCESS) then
                 print *, "MPI_Isend_2d failed with error code: ", local_ierr
+            end if
+        end if
+
+        request = c_mpi_request_c2f(c_request)
+    end subroutine
+
+    subroutine MPI_Isend_2d_real4(buf, count, datatype, dest, tag, comm, request, ierror)
+        use iso_c_binding, only: c_int, c_ptr, c_loc
+        use mpi_c_bindings, only: c_mpi_isend, c_mpi_request_c2f
+        real(4), dimension(:, :), intent(in), target :: buf
+        integer, intent(in) :: count, dest, tag
+        integer, intent(in) :: datatype
+        integer, intent(in) :: comm
+        integer, intent(out) :: request
+        integer, optional, intent(out) :: ierror
+        type(c_ptr) :: buf_ptr
+        integer(kind=MPI_HANDLE_KIND) :: c_datatype, c_comm, c_request
+        integer(c_int) :: local_ierr
+
+        buf_ptr = c_loc(buf)
+        c_datatype = handle_mpi_datatype_f2c(datatype)
+
+        c_comm = handle_mpi_comm_f2c(comm)
+
+        local_ierr = c_mpi_isend(buf_ptr, count, c_datatype, dest, tag, c_comm, c_request)
+
+        if (present(ierror)) then
+            ierror = local_ierr
+        else
+            if (local_ierr /= MPI_SUCCESS) then
+                print *, "MPI_Isend_2d_real4 failed with error code: ", local_ierr
             end if
         end if
 
@@ -725,6 +826,37 @@ module mpi
         request = c_mpi_request_c2f(c_request)
     end subroutine
 
+    subroutine MPI_Isend_3d_real4(buf, count, datatype, dest, tag, comm, request, ierror)
+        use iso_c_binding, only: c_int, c_ptr, c_loc
+        use mpi_c_bindings, only: c_mpi_isend, c_mpi_request_c2f
+        real(4), dimension(:, :, :), intent(in), target :: buf
+        integer, intent(in) :: count, dest, tag
+        integer, intent(in) :: datatype
+        integer, intent(in) :: comm
+        integer, intent(out) :: request
+        integer, optional, intent(out) :: ierror
+        type(c_ptr) :: buf_ptr
+        integer(kind=MPI_HANDLE_KIND) :: c_datatype, c_comm, c_request
+        integer(c_int) :: local_ierr
+
+        buf_ptr = c_loc(buf)
+        c_datatype = handle_mpi_datatype_f2c(datatype)
+
+        c_comm = handle_mpi_comm_f2c(comm)
+
+        local_ierr = c_mpi_isend(buf_ptr, count, c_datatype, dest, tag, c_comm, c_request)
+
+        if (present(ierror)) then
+            ierror = local_ierr
+        else
+            if (local_ierr /= MPI_SUCCESS) then
+                print *, "MPI_Isend_3d_real4 failed with error code: ", local_ierr
+            end if
+        end if
+
+        request = c_mpi_request_c2f(c_request)
+    end subroutine
+
     subroutine MPI_Irecv_proc(buf, count, datatype, source, tag, comm, request, ierror)
         use iso_c_binding, only: c_int, c_ptr
         use mpi_c_bindings, only: c_mpi_irecv, c_mpi_request_c2f
@@ -753,6 +885,35 @@ module mpi
             end if
         end if
     end subroutine MPI_Irecv_proc
+
+    subroutine MPI_Irecv_real4_proc(buf, count, datatype, source, tag, comm, request, ierror)
+        use iso_c_binding, only: c_int, c_ptr
+        use mpi_c_bindings, only: c_mpi_irecv_float, c_mpi_request_c2f
+        real(4), dimension(:,:) :: buf
+        integer, intent(in) :: count, source, tag
+        integer, intent(in) :: datatype
+        integer, intent(in) :: comm
+        integer, intent(out) :: request
+        integer, optional, intent(out) :: ierror
+        integer(kind=MPI_HANDLE_KIND) :: c_comm
+        integer(c_int) :: local_ierr
+        integer(kind=MPI_HANDLE_KIND) :: c_datatype
+        integer(kind=MPI_HANDLE_KIND) :: c_request
+
+        c_comm = handle_mpi_comm_f2c(comm)
+
+        c_datatype = handle_mpi_datatype_f2c(datatype)
+        local_ierr = c_mpi_irecv_float(buf, count, c_datatype, source, tag, c_comm, c_request)
+        request = c_mpi_request_c2f(c_request)
+
+        if (present(ierror)) then
+            ierror = local_ierr
+        else
+            if (local_ierr /= MPI_SUCCESS) then
+                print *, "MPI_Irecv failed with error code: ", local_ierr
+            end if
+        end if
+    end subroutine MPI_Irecv_real4_proc
 
     subroutine MPI_Sendrecv_proc (sendbuf, sendcount, sendtype, dest, sendtag, &
                         recvbuf, recvcount, recvtype, source, recvtag, comm, status, ierror)
@@ -829,6 +990,68 @@ module mpi
         end if
     end subroutine
 
+    subroutine MPI_Allreduce_scalar_real4(sendbuf, recvbuf, count, datatype, op, comm, ierror)
+        use iso_c_binding, only: c_int, c_ptr, c_loc
+        use mpi_c_bindings, only: c_mpi_allreduce
+        real(4), intent(in), target :: sendbuf
+        real(4), intent(out), target :: recvbuf
+        integer, intent(in) :: count, datatype, op, comm
+        integer, intent(out), optional :: ierror
+        type(c_ptr) :: sendbuf_ptr, recvbuf_ptr
+        integer(kind=MPI_HANDLE_KIND) :: c_datatype, c_op, c_comm
+        integer(c_int) :: local_ierr
+
+        sendbuf_ptr = c_loc(sendbuf)
+        recvbuf_ptr = c_loc(recvbuf)
+        c_datatype = handle_mpi_datatype_f2c(datatype)
+        c_op = handle_mpi_op_f2c(op)
+
+        c_comm = handle_mpi_comm_f2c(comm)
+
+        local_ierr = c_mpi_allreduce(sendbuf_ptr, recvbuf_ptr, count, c_datatype, c_op, c_comm)
+
+        if (present(ierror)) then
+            ierror = local_ierr
+        else
+            if (local_ierr /= MPI_SUCCESS) then
+                print *, "MPI_Allreduce_scalar_real4 failed with error code: ", local_ierr
+            end if
+        end if
+    end subroutine MPI_Allreduce_scalar_real4
+
+    subroutine MPI_Allreduce_scalar_in_place_real4(sendbuf, recvbuf, count, datatype, op, comm, ierror)
+        use iso_c_binding, only: c_int, c_ptr, c_loc
+        use mpi_c_bindings, only: c_mpi_allreduce, c_mpi_in_place
+        real(8), intent(in), target :: sendbuf
+        real(4), intent(out), target :: recvbuf
+        integer, intent(in) :: count, datatype, op, comm
+        integer, intent(out), optional :: ierror
+        type(c_ptr) :: sendbuf_ptr, recvbuf_ptr
+        integer(kind=MPI_HANDLE_KIND) :: c_datatype, c_op, c_comm
+        integer(c_int) :: local_ierr
+
+        if (sendbuf == MPI_IN_PLACE) then
+            sendbuf_ptr = c_mpi_in_place
+        else
+            sendbuf_ptr = c_loc(sendbuf)
+        end if
+        recvbuf_ptr = c_loc(recvbuf)
+        c_datatype = handle_mpi_datatype_f2c(datatype)
+        c_op = handle_mpi_op_f2c(op)
+
+        c_comm = handle_mpi_comm_f2c(comm)
+
+        local_ierr = c_mpi_allreduce(sendbuf_ptr, recvbuf_ptr, count, c_datatype, c_op, c_comm)
+
+        if (present(ierror)) then
+            ierror = local_ierr
+        else
+            if (local_ierr /= MPI_SUCCESS) then
+                print *, "MPI_Allreduce_scalar_in_place_real4 failed with error code: ", local_ierr
+            end if
+        end if
+    end subroutine
+
     subroutine MPI_Allreduce_1D_recv_proc(sendbuf, recvbuf, count, datatype, op, comm, ierror)
         use iso_c_binding, only: c_int, c_ptr, c_loc
         use mpi_c_bindings, only: c_mpi_allreduce, c_mpi_in_place
@@ -863,6 +1086,40 @@ module mpi
         end if
     end subroutine MPI_Allreduce_1D_recv_proc
 
+    subroutine MPI_Allreduce_1D_recv_real4_proc(sendbuf, recvbuf, count, datatype, op, comm, ierror)
+        use iso_c_binding, only: c_int, c_ptr, c_loc
+        use mpi_c_bindings, only: c_mpi_allreduce, c_mpi_in_place
+        real(8), intent(in), target :: sendbuf
+        real(4), dimension(:), intent(out), target :: recvbuf
+        integer, intent(in) :: count, datatype, op, comm
+        integer, intent(out), optional :: ierror
+        type(c_ptr) :: sendbuf_ptr, recvbuf_ptr
+        integer(kind=MPI_HANDLE_KIND) :: c_datatype, c_op, c_comm
+        integer(c_int) :: local_ierr
+
+        if (sendbuf == MPI_IN_PLACE) then
+            sendbuf_ptr = c_mpi_in_place
+        else
+            sendbuf_ptr = c_loc(sendbuf)
+        end if
+
+        recvbuf_ptr = c_loc(recvbuf)
+        c_datatype = handle_mpi_datatype_f2c(datatype)
+        c_op = handle_mpi_op_f2c(op)
+
+        c_comm = handle_mpi_comm_f2c(comm)
+
+        local_ierr = c_mpi_allreduce(sendbuf_ptr, recvbuf_ptr, count, c_datatype, c_op, c_comm)
+
+        if (present(ierror)) then
+            ierror = local_ierr
+        else
+            if (local_ierr /= MPI_SUCCESS) then
+                print *, "MPI_Allreduce_1D_recv_real4_proc failed with error code: ", local_ierr
+            end if
+        end if
+    end subroutine MPI_Allreduce_1D_recv_real4_proc
+
     subroutine MPI_Allreduce_1D_real_proc(sendbuf, recvbuf, count, datatype, op, comm, ierror)
         use iso_c_binding, only: c_int, c_ptr, c_loc
         use mpi_c_bindings, only: c_mpi_allreduce
@@ -891,6 +1148,35 @@ module mpi
             end if
         end if
     end subroutine MPI_Allreduce_1D_real_proc
+
+    subroutine MPI_Allreduce_1D_real4_proc(sendbuf, recvbuf, count, datatype, op, comm, ierror)
+        use iso_c_binding, only: c_int, c_ptr, c_loc
+        use mpi_c_bindings, only: c_mpi_allreduce
+        real(4), dimension(:), intent(in), target :: sendbuf
+        real(4), dimension(:), intent(out), target :: recvbuf
+        integer, intent(in) :: count, datatype, op, comm
+        integer, intent(out), optional :: ierror
+        type(c_ptr) :: sendbuf_ptr, recvbuf_ptr
+        integer(kind=MPI_HANDLE_KIND) :: c_datatype, c_op, c_comm
+        integer(c_int) :: local_ierr
+
+        sendbuf_ptr = c_loc(sendbuf)
+        recvbuf_ptr = c_loc(recvbuf)
+        c_datatype = handle_mpi_datatype_f2c(datatype)
+        c_op = handle_mpi_op_f2c(op)
+
+        c_comm = handle_mpi_comm_f2c(comm)
+
+        local_ierr = c_mpi_allreduce(sendbuf_ptr, recvbuf_ptr, count, c_datatype, c_op, c_comm)
+
+        if (present(ierror)) then
+            ierror = local_ierr
+        else
+            if (local_ierr /= MPI_SUCCESS) then
+                print *, "MPI_Allreduce_1D_real4_proc failed with error code: ", local_ierr
+            end if
+        end if
+    end subroutine MPI_Allreduce_1D_real4_proc
 
     subroutine MPI_Allreduce_1D_int_proc(sendbuf, recvbuf, count, datatype, op, comm, ierror)
         use iso_c_binding, only: c_int, c_ptr, c_loc
@@ -1065,6 +1351,43 @@ module mpi
     
     end subroutine MPI_Recv_StatusArray_proc
 
+    subroutine MPI_Recv_StatusArray_real4_proc(buf, count, datatype, source, tag, comm, status, ierror)
+        use iso_c_binding, only: c_int, c_ptr, c_loc
+        use mpi_c_bindings, only: c_mpi_recv, c_mpi_status_c2f
+        real(4), dimension(*), intent(inout), target :: buf
+        integer, intent(in)  :: count, source, tag, datatype, comm
+        integer, intent(out) :: status(MPI_STATUS_SIZE)
+        integer, optional, intent(out) :: ierror
+
+        integer(c_int) :: local_ierr, status_ierr
+        integer(kind=MPI_HANDLE_KIND) :: c_dtype, c_comm
+        type(c_ptr) :: c_status
+        integer(c_int), dimension(MPI_STATUS_SIZE), target :: tmp_status
+
+        ! Convert Fortran handles to C handles.
+        c_dtype = handle_mpi_datatype_f2c(datatype)
+
+        c_comm = handle_mpi_comm_f2c(comm)
+
+        ! Use a local temporary MPI_Status (as an array of c_int)
+        c_status = c_loc(tmp_status)
+
+        ! Call the native MPI_Recv.
+        local_ierr = c_mpi_recv(c_loc(buf), count, c_dtype, source, tag, c_comm, c_status)
+
+        ! Convert the C MPI_Status to Fortran status.
+        if (local_ierr == MPI_SUCCESS) then
+          status_ierr =  c_mpi_status_c2f(c_status, status)
+        end if
+
+        if (present(ierror)) then
+            ierror = local_ierr
+        else if (local_ierr /= MPI_SUCCESS) then
+            print *, "MPI_Recv failed with error code: ", local_ierr
+        end if
+
+    end subroutine MPI_Recv_StatusArray_real4_proc
+
     subroutine MPI_Recv_StatusIgnore_proc(buf, count, datatype, source, tag, comm, status, ierror)
         use iso_c_binding, only: c_int, c_ptr, c_loc
         use mpi_c_bindings, only: c_mpi_recv, c_mpi_status_c2f
@@ -1101,6 +1424,43 @@ module mpi
         end if
     
     end subroutine MPI_Recv_StatusIgnore_proc
+
+    subroutine MPI_Recv_StatusIgnore_real4_proc(buf, count, datatype, source, tag, comm, status, ierror)
+        use iso_c_binding, only: c_int, c_ptr, c_loc
+        use mpi_c_bindings, only: c_mpi_recv, c_mpi_status_c2f
+        real(4), dimension(*), intent(inout), target :: buf
+        integer, intent(in)  :: count, source, tag, datatype, comm
+        integer, intent(out) :: status
+        integer, optional, intent(out) :: ierror
+
+        integer(c_int) :: local_ierr, status_ierr
+        integer(kind=MPI_HANDLE_KIND) :: c_dtype, c_comm
+        type(c_ptr) :: c_status
+        integer(c_int), dimension(MPI_STATUS_SIZE), target :: tmp_status
+
+        ! Convert Fortran handles to C handles.
+        c_dtype = handle_mpi_datatype_f2c(datatype)
+
+        c_comm = handle_mpi_comm_f2c(comm)
+
+        ! Use a local temporary MPI_Status (as an array of c_int)
+        c_status = c_loc(tmp_status)
+
+        ! Call the native MPI_Recv.
+        local_ierr = c_mpi_recv(c_loc(buf), count, c_dtype, source, tag, c_comm, c_status)
+
+        ! Convert the C MPI_Status to Fortran status.
+        if (local_ierr == MPI_SUCCESS) then
+        !   status_ierr =  c_mpi_status_c2f(c_status, status)
+        end if
+
+        if (present(ierror)) then
+            ierror = local_ierr
+        else if (local_ierr /= MPI_SUCCESS) then
+            print *, "MPI_Recv failed with error code: ", local_ierr
+        end if
+
+    end subroutine MPI_Recv_StatusIgnore_real4_proc
 
     subroutine MPI_Gatherv_int(sendbuf, sendcount, sendtype, recvbuf, recvcounts, &
                                displs, recvtype, root, comm, ierror)
@@ -1429,6 +1789,22 @@ module mpi
         c_datatype = handle_mpi_datatype_f2c(datatype)
         c_comm = handle_mpi_comm_f2c(comm)
         local_ierr = c_mpi_ssend(buf, count, c_datatype, dest, tag, c_comm)
+    end subroutine
+
+    subroutine MPI_Ssend_real4_proc(buf, count, datatype, dest, tag, comm, ierror)
+        use iso_c_binding, only: c_int, c_ptr
+        use mpi_c_bindings, only: c_mpi_ssend_float
+        real(4), dimension(*), intent(in) :: buf
+        integer, intent(in) :: count, dest, tag
+        integer, intent(in) :: datatype
+        integer, intent(in) :: comm
+        integer, optional, intent(out) :: ierror
+        integer(kind=MPI_HANDLE_KIND) :: c_datatype, c_comm
+        integer :: local_ierr
+
+        c_datatype = handle_mpi_datatype_f2c(datatype)
+        c_comm = handle_mpi_comm_f2c(comm)
+        local_ierr = c_mpi_ssend_float(buf, count, c_datatype, dest, tag, c_comm)
     end subroutine
 
     subroutine MPI_Cart_create_proc(comm_old, ndims, dims, periods, reorder, comm_cart, ierror)

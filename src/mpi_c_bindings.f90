@@ -180,6 +180,16 @@ module mpi_c_bindings
             integer(c_int) :: c_mpi_irecv
         end function
 
+        function c_mpi_irecv_float(buf, count, datatype, source, tag, comm, request) bind(C, name="MPI_Irecv")
+            use iso_c_binding, only: c_int, c_float, c_ptr
+            real(c_float), dimension(*), intent(out) :: buf
+            integer(c_int), value :: count, source, tag
+            integer(kind=MPI_HANDLE_KIND), value :: datatype
+            integer(kind=MPI_HANDLE_KIND), value :: comm
+            integer(kind=MPI_HANDLE_KIND), intent(out) :: request
+            integer(c_int) :: c_mpi_irecv_float
+        end function
+
         function c_mpi_allreduce(sendbuf, recvbuf, count, datatype, op, comm) &
                                                     bind(C, name="MPI_Allreduce")
             use iso_c_binding, only: c_int, c_double, c_ptr
@@ -268,6 +278,15 @@ module mpi_c_bindings
             integer(kind=MPI_HANDLE_KIND), value :: datatype
             integer(kind=MPI_HANDLE_KIND), value :: comm
             integer(c_int) :: c_mpi_ssend
+        end function
+
+        function c_mpi_ssend_float(buf, count, datatype, dest, tag, comm) bind(C, name="MPI_Ssend")
+            use iso_c_binding, only: c_int, c_float, c_ptr
+            real(c_float), dimension(*), intent(in) :: buf
+            integer(c_int), value :: count, dest, tag
+            integer(kind=MPI_HANDLE_KIND), value :: datatype
+            integer(kind=MPI_HANDLE_KIND), value :: comm
+            integer(c_int) :: c_mpi_ssend_float
         end function
 
         function c_mpi_gatherv(sendbuf, sendcount, sendtype, recvbuf, recvcounts, &
