@@ -54,6 +54,15 @@ if [[ "$MPI_TYPE" == "openmpi" ]]; then
   FC_FLAGS="-DOPEN_MPI"
 fi
 
+# MPI_ABI=yes: link with the MPI-5 standard ABI library, libmpi_abi
+CFLAGS=""
+MPI_LIB=mpi
+if [[ -n "$MPI_ABI" ]]; then
+  FC_FLAGS="-DMPI_ABI"
+  CFLAGS="-DMPI_ABI"
+  MPI_LIB=mpi_abi
+fi
+
 echo -e "${RED}Removing all untracked files${NC}"
 git clean -dfx
 echo -e "#################################"
@@ -75,7 +84,7 @@ else
 fi
 
 if [ $USE_WRAPPERS -eq 1 ]; then
-  $CC -I"$CONDA_PREFIX/include" -c ../src/mpi_constants.c
+  $CC $CFLAGS -I"$CONDA_PREFIX/include" -c ../src/mpi_constants.c
   $FC $FC_FLAGS -c ../src/mpi_c_bindings.f90
   $FC $FC_FLAGS -c ../src/mpi.f90
 fi
@@ -95,7 +104,7 @@ for file in "${TEST_FILES[@]}"; do
 
   if [ $USE_WRAPPERS -eq 1 ]; then
     $FC mpi_constants.o mpi_c_bindings.o mpi.o "$filename.o" \
-      -o "$filename" -L"$CONDA_PREFIX/lib" -lmpi -Wl,-rpath,"$CONDA_PREFIX/lib"
+      -o "$filename" -L"$CONDA_PREFIX/lib" -l$MPI_LIB -Wl,-rpath,"$CONDA_PREFIX/lib"
   else
     $FC "$filename.o" -o "$filename"
   fi

@@ -410,7 +410,8 @@ module mpi
         if (c_sizeof_mpi_comm /= MPI_HANDLE_KIND) then
             print *, "fortran_mpi: compiled with MPI_HANDLE_KIND =", MPI_HANDLE_KIND, &
                 "but the MPI library's handles have", c_sizeof_mpi_comm, "bytes."
-            print *, "With Open MPI, compile src/mpi_c_bindings.f90 with -DOPEN_MPI."
+            print *, "Compile src/mpi_c_bindings.f90 with -DOPEN_MPI for Open MPI,", &
+                " or with -DMPI_ABI for the MPI-5 ABI (libmpi_abi)."
             error stop 1
         end if
         if (c_sizeof_mpi_status > 4*MPI_STATUS_SIZE) then

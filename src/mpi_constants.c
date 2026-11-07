@@ -79,7 +79,8 @@ MPI_Datatype c_datatype_table[256] = {  /* ABI 0x200 .. 0x2ff */
 };
 
 /* Error classes, indexed by their ABI value. The classes of MPI 4 and
- * later are only there if the library has them. */
+ * later are only there if the library has them. The MPI-5 ABI header
+ * (MPI_ABI_VERSION) has them all, as enum values that #ifdef cannot see. */
 
 int c_error_class_table[63] = {
     [0] = MPI_SUCCESS,
@@ -140,19 +141,19 @@ int c_error_class_table[63] = {
     [55] = MPI_ERR_UNSUPPORTED_OPERATION,
     [56] = MPI_ERR_WIN,
     [57] = MPI_ERR_RMA_FLAVOR,
-#ifdef MPI_ERR_PROC_ABORTED
+#if defined(MPI_ERR_PROC_ABORTED) || defined(MPI_ABI_VERSION)
     [58] = MPI_ERR_PROC_ABORTED,
 #endif
-#ifdef MPI_ERR_VALUE_TOO_LARGE
+#if defined(MPI_ERR_VALUE_TOO_LARGE) || defined(MPI_ABI_VERSION)
     [59] = MPI_ERR_VALUE_TOO_LARGE,
 #endif
-#ifdef MPI_ERR_SESSION
+#if defined(MPI_ERR_SESSION) || defined(MPI_ABI_VERSION)
     [60] = MPI_ERR_SESSION,
 #endif
-#ifdef MPI_ERR_ERRHANDLER
+#if defined(MPI_ERR_ERRHANDLER) || defined(MPI_ABI_VERSION)
     [61] = MPI_ERR_ERRHANDLER,
 #endif
-#ifdef MPI_ERR_ABI
+#if defined(MPI_ERR_ABI) || defined(MPI_ABI_VERSION)
     [62] = MPI_ERR_ABI,
 #endif
 };

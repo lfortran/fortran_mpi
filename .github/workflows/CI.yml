@@ -26,7 +26,8 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
         compiler: [gfortran, flang, ifx, lfortran]
-        mpi: [openmpi, mpich]
+        # mpich-abi: MPICH's MPI-5 standard ABI library, libmpi_abi
+        mpi: [openmpi, mpich, mpich-abi]
         exclude:
           # conda-forge has flang and ifx for Linux only
           - os: macos-latest
@@ -66,7 +67,7 @@ jobs:
           environments: ${{ env.ENV }}
 
       - name: Test without the custom MPI wrappers
-        if: matrix.compiler == 'gfortran'
+        if: matrix.compiler == 'gfortran' && matrix.mpi != 'mpich-abi'
         run: pixi run -e $ENV test-without-wrappers
 
       - name: Test
@@ -84,7 +85,7 @@ jobs:
           pixi run -e $ENV $POT3D "${{ matrix.fc }}"
 
       - name: POT3D with ${{ matrix.opt }}
-        if: runner.os == 'Linux' || matrix.mpi != 'mpich'
+        if: runner.os == 'Linux' || matrix.mpi == 'openmpi'
         run: |
           [ -z "$STACK" ] || ulimit -s $STACK
           pixi run -e $ENV $POT3D "${{ matrix.fc }} ${{ matrix.opt }}"

@@ -36,8 +36,9 @@ to any Fortran compiler, with any MPI implementation.
    library uses for each constant.
    - It contains no functions, only initialized data, so it works with any MPI
      implementation.
-   - It is temporary. Once we link against an MPI-5 ABI library, the native
-     values are the ABI values and the file goes away.
+   - Compiled against the MPI-5 ABI header (`mpi_abi.h`), every table is the
+     identity and every special integer is its ABI value. The file goes away
+     once every MPI library we support has the ABI.
 
 5. **Everything vendor-specific is translated at the boundary, in both
    directions.** That covers handles, special integers and statuses. Each value
@@ -50,12 +51,18 @@ to any Fortran compiler, with any MPI implementation.
    is called directly from Fortran, through a `bind(C)` interface in
    `src/mpi_c_bindings.f90` that mirrors the C prototype exactly.
 
-7. **At most one `#ifdef` in the Fortran code.** `src/mpi_c_bindings.f90`
-   selects the size of a C handle: 8 bytes for Open MPI (pointers), 4 for
-   MPICH (`int`). This `#ifdef` goes away with the MPI-5 ABI, where a handle
-   is always pointer-sized. `src/mpi_constants.c` uses `#ifdef` only to ask
-   whether the library defines a constant at all, for the error classes of
-   MPI 4 and later.
+7. **One preprocessor block in the Fortran code.** At the top of
+   `src/mpi_c_bindings.f90`, one `#if` block selects, for each of three
+   targets:
+   - the size of a C handle: 8 bytes for the MPI-5 ABI (`-DMPI_ABI`) and Open
+     MPI (`-DOPEN_MPI`), both pointers; 4 for MPICH (`int`);
+   - the names of the 9 functions that convert handles between C and
+     Fortran integers: `MPI_*_toint`/`MPI_*_fromint` in the ABI,
+     `MPI_*_c2f`/`MPI_*_f2c` otherwise.
+
+   The block goes away once every MPI library we support has the ABI.
+   `src/mpi_constants.c` uses `#if` only to ask whether the library defines a
+   constant at all, for the error classes of MPI 4 and later.
 
 8. **Coverage grows with real use.** A routine, or a type/kind/rank variant
    of one, is added when a real code needs it (POT3D, PARALLAX, user
@@ -63,8 +70,9 @@ to any Fortran compiler, with any MPI implementation.
 
 9. **Verified by running programs.**
    - Every test runs with 1, 2 and 4 ranks.
-   - The test matrix covers 2 MPI implementations × 4 compilers (gfortran,
-     flang, ifx, LFortran) × 2 OSes, with and without optimization.
+   - The test matrix covers 3 MPI libraries (Open MPI, MPICH, and MPICH's
+     MPI-5 ABI library `libmpi_abi`) × 4 compilers (gfortran, flang, ifx,
+     LFortran) × 2 OSes, with and without optimization.
    - POT3D is the end-to-end test: its output is compared with reference
      results.
 
@@ -247,7 +255,8 @@ shape of a status, `(MPI_STATUS_SIZE)`, and of an array of statuses,
 program with an explanation in two cases:
 
 - `MPI_HANDLE_KIND` does not match the size of a native handle. For example,
-  `src/mpi_c_bindings.f90` was compiled without `-DOPEN_MPI` for Open MPI.
+  `src/mpi_c_bindings.f90` was compiled without `-DOPEN_MPI` for Open MPI, or
+  without `-DMPI_ABI` for `libmpi_abi`.
   Without this check, handles would be silently truncated.
 - The native `MPI_Status`, `MPI_MAX_OBJECT_NAME` or `MPI_MAX_ERROR_STRING`
   does not fit the ABI sizes.
@@ -290,24 +299,44 @@ subroutine MPI_Bcast_real_2D(buffer, count, datatype, root, comm, ierror)
 end subroutine MPI_Bcast_real_2D
 ```
 
-## Moving to the MPI-5 ABI
+## The MPI-5 ABI
 
-MPI 5.0 defines a standard C ABI, `libmpi_abi`, which MPICH already supports.
-When we can link against it:
+MPI 5.0 defines a standard C ABI (chapter 21). MPICH 5 implements it in a
+separate library, `libmpi_abi`, with the header `mpi_abi.h`. The conda-forge
+MPICH package ships both; Open MPI 5.0 does not have the ABI yet.
 
-- `MPI_HANDLE_KIND` is `c_intptr_t` everywhere, and the `#ifdef` goes away.
-- A predefined C handle is its ABI integer, so the tables become the identity
-  and `src/mpi_constants.c` is deleted.
-- Handles that MPI creates go through `MPI_*_fromint`/`MPI_*_toint` without
-  the offset. The ABI guarantees they are outside 1 .. 4095.
-- Ranks, tags and statuses need no translation.
+To build against it, compile everything with `-DMPI_ABI`: MPICH's `mpi.h`
+then includes `mpi_abi.h` for `src/mpi_constants.c`, and
+`src/mpi_c_bindings.f90` selects the ABI's handle size and conversion
+functions. Link with `-lmpi_abi` instead of `-lmpi`. The `*-mpich-abi` pixi
+environments set `MPI_ABI=yes`, which makes the test and POT3D scripts do
+this.
 
-Only the translation functions change, and `src/mpi.f90` keeps its constants.
-Two things to check when we get there:
+With the ABI:
 
-- MPI-5 does not define a Fortran ABI (§21.4), so it does not say that
-  `MPI_Comm_toint(MPI_COMM_WORLD)` is 257.
-- We need to find which builds of MPICH and Open MPI ship `libmpi_abi`.
+- A C handle is pointer-sized, and a predefined one is its ABI integer
+  (`MPI_COMM_WORLD` is `(MPI_Comm)0x101`). The tables in
+  `src/mpi_constants.c` come out as the identity, and the special integers
+  as their ABI values. So ranks, tags, thread levels and statuses pass
+  through the translation functions unchanged.
+- Handles that MPI creates are converted with `MPI_*_toint`/`MPI_*_fromint`.
+  The ABI library has no `MPI_*_c2f`/`MPI_*_f2c`, because they depend on a
+  Fortran ABI, which MPI-5 does not define (§21.4).
+- MPICH's `MPI_Comm_toint(MPI_COMM_WORLD)` is 257, the ABI value, although
+  the standard does not require it. A user handle is MPICH's usual large
+  integer, so `USER_HANDLE_OFFSET` is still added, and it is harmless.
+
+`src/mpi.f90` is the same source for all three targets.
+
+What remains, once Open MPI ships the ABI too:
+
+- Drop `src/mpi_constants.c` and the tables. The translation functions
+  become the identity for predefined handles and special integers.
+- Drop the `#if` block in `src/mpi_c_bindings.f90`: `MPI_HANDLE_KIND` is
+  `c_intptr_t`, and handles convert with `MPI_*_toint`/`MPI_*_fromint`.
+- Drop `USER_HANDLE_OFFSET`, if `MPI_*_toint` is guaranteed to keep the
+  handles MPI creates outside 1 .. 4095. MPICH's do; the standard only says
+  so for the C handles.
 
 ## Known deviations
 

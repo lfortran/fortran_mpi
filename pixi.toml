@@ -41,6 +41,12 @@ mpich = "*"
 [feature.mpich.activation.env]
 UCX_TLS = "self,sm"
 
+# The MPI-5 standard ABI: MPICH's libmpi_abi, with mpi_abi.h for the C code
+# and -DMPI_ABI for src/mpi_c_bindings.f90
+[feature.mpi-abi.activation.env]
+MPI_DEFS = "-DMPI_ABI"
+MPI_ABI = "yes"
+
 # mpif90, for test-without-wrappers
 [feature.openmpi-fortran.dependencies]
 openmpi-mpifort = "*"
@@ -65,3 +71,7 @@ ifx-openmpi = ["ifx", "openmpi"]
 ifx-mpich = ["ifx", "mpich"]
 lfortran-openmpi = ["lfortran", "openmpi"]
 lfortran-mpich = ["lfortran", "mpich"]
+gfortran-mpich-abi = ["gfortran", "mpich", "mpi-abi"]
+flang-mpich-abi = ["flang", "mpich", "mpi-abi"]
+ifx-mpich-abi = ["ifx", "mpich", "mpi-abi"]
+lfortran-mpich-abi = ["lfortran", "mpich", "mpi-abi"]
