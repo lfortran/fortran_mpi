@@ -50,10 +50,12 @@ to any Fortran compiler, with any MPI implementation.
    is called directly from Fortran, through a `bind(C)` interface in
    `src/mpi_c_bindings.f90` that mirrors the C prototype exactly.
 
-7. **At most one `#ifdef`.** `src/mpi_c_bindings.f90` selects the size of a C
-   handle: 8 bytes for Open MPI (pointers), 4 for MPICH (`int`). This is the
-   only `#ifdef` in the library, and it goes away with the MPI-5 ABI, where a
-   handle is always pointer-sized.
+7. **At most one `#ifdef` in the Fortran code.** `src/mpi_c_bindings.f90`
+   selects the size of a C handle: 8 bytes for Open MPI (pointers), 4 for
+   MPICH (`int`). This `#ifdef` goes away with the MPI-5 ABI, where a handle
+   is always pointer-sized. `src/mpi_constants.c` uses `#ifdef` only to ask
+   whether the library defines a constant at all, for the error classes of
+   MPI 4 and later.
 
 8. **Coverage grows with real use.** A routine, or a type/kind/rank variant
    of one, is added when a real code needs it (POT3D, PARALLAX, user
@@ -187,6 +189,58 @@ The Fortran status has the ABI layout: `MPI_STATUS_SIZE` = 8 integers.
 We do not use the native `MPI_Status_c2f`. It writes the native Fortran
 layout: 6 integers for Open MPI, and no rank translation.
 
+`MPI_Waitall` receives the native statuses into one array, each
+`sizeof(MPI_Status)` bytes, and converts them one by one.
+
+### `MPI_IN_PLACE`, `MPI_STATUS_IGNORE` and `MPI_STATUSES_IGNORE`
+
+These constants are not values; the standard requires recognizing them by
+their address. Values worked badly: a buffer whose first element was -1002
+was taken as `MPI_IN_PLACE`.
+
+**`MPI_IN_PLACE`** is a variable of its own type, `mpi_in_place_type`.
+- Its type differs from every buffer type. So `call MPI_Allreduce(MPI_IN_PLACE,
+  x, ...)` selects a specific procedure whose send buffer is
+  `type(mpi_in_place_type)`, at compile time.
+- That procedure passes the native `MPI_IN_PLACE` to the core.
+- No data can be taken for `MPI_IN_PLACE`.
+- Each in-place use needs its own specific procedure, one per type and rank
+  of the other buffer. A call that has none does not compile; it does not
+  fail at run time.
+
+**`MPI_STATUS_IGNORE` and `MPI_STATUSES_IGNORE`** are integer arrays of the
+shape of a status, `(MPI_STATUS_SIZE)`, and of an array of statuses,
+`(MPI_STATUS_SIZE, 1)`.
+- `is_status_ignore` and `is_statuses_ignore` compare the address of the
+  argument with the address of the constant. If they match, the core passes
+  the native `MPI_STATUS_IGNORE` or `MPI_STATUSES_IGNORE` to C.
+- This needs no extra specific procedures, since a status argument always
+  has the same type.
+- Status arguments have the `target` attribute and explicit shape, so the
+  compiler passes the actual array and does not copy it.
+- The addresses are first stored in `c_ptr` variables and then compared:
+  LFortran gets `c_associated(c_loc(a), c_loc(b))` wrong.
+
+### Errors
+
+- Error handlers are predefined handles with a table:
+  `MPI_ERRORS_ARE_FATAL`, `MPI_ERRORS_ABORT`, `MPI_ERRORS_RETURN`.
+  `MPI_Comm_set_errhandler` sets one.
+- Error codes, which MPI returns in `ierror`, are left native. They are
+  implementation-specific in the MPI-5 ABI too. Only `MPI_SUCCESS` = 0 is a
+  fixed code.
+- Error classes have their ABI values (`MPI_ERR_ROOT` = 8, ...).
+  `MPI_Error_class` translates the native class back to the ABI value through
+  the table `c_error_class_table`, so codes are compared with the classes as
+  the standard intends:
+
+  ```fortran
+  call MPI_Error_class(ierr, errorclass)
+  if (errorclass == MPI_ERR_ROOT) ...
+  ```
+
+- `MPI_Error_string` takes the native code.
+
 ### Startup checks
 
 `MPI_Init` and `MPI_Init_thread` first call `check_native_mpi`. It stops the
@@ -195,7 +249,8 @@ program with an explanation in two cases:
 - `MPI_HANDLE_KIND` does not match the size of a native handle. For example,
   `src/mpi_c_bindings.f90` was compiled without `-DOPEN_MPI` for Open MPI.
   Without this check, handles would be silently truncated.
-- The native `MPI_Status` or `MPI_MAX_OBJECT_NAME` does not fit the ABI sizes.
+- The native `MPI_Status`, `MPI_MAX_OBJECT_NAME` or `MPI_MAX_ERROR_STRING`
+  does not fit the ABI sizes.
 
 ### Adding a constant
 
@@ -256,12 +311,9 @@ Two things to check when we get there:
 
 ## Known deviations
 
-- `MPI_IN_PLACE`, `MPI_STATUS_IGNORE` and `MPI_STATUSES_IGNORE` should be
-  recognized by their address, as the standard intends. They are recognized
-  by value instead: a buffer whose first element is −1002 is taken as
-  `MPI_IN_PLACE`.
-- `MPI_Waitall` ignores `array_of_statuses`.
-- Error codes returned in `ierror` are the native ones, not translated. Only
-  `MPI_SUCCESS` = 0 is the same everywhere.
+- Error codes are compared with error classes only through
+  `MPI_Error_class`. Code that compares `ierror` directly with `MPI_ERR_*`
+  works only when the native code equals the ABI class.
+- There are no user-defined error handlers or error classes.
 - Each routine supports only the type/kind/rank variants that real codes have
   needed so far (#64, #138).

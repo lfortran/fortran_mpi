@@ -57,6 +57,13 @@ MPI_Request c_request_table[1] = {      /* ABI 0x180 */
     [0x00] = MPI_REQUEST_NULL,
 };
 
+MPI_Errhandler c_errhandler_table[4] = {  /* ABI 0x140 .. 0x143 */
+    [0x00] = MPI_ERRHANDLER_NULL,
+    [0x01] = MPI_ERRORS_ARE_FATAL,
+    [0x02] = MPI_ERRORS_ABORT,
+    [0x03] = MPI_ERRORS_RETURN,
+};
+
 MPI_Datatype c_datatype_table[256] = {  /* ABI 0x200 .. 0x2ff */
     [0x00] = MPI_DATATYPE_NULL,
     [0x09] = MPI_INT,
@@ -69,6 +76,85 @@ MPI_Datatype c_datatype_table[256] = {  /* ABI 0x200 .. 0x2ff */
     [0x1e] = MPI_CHARACTER,
     [0xd2] = MPI_REAL4,
     [0xda] = MPI_REAL8,
+};
+
+/* Error classes, indexed by their ABI value. The classes of MPI 4 and
+ * later are only there if the library has them. */
+
+int c_error_class_table[63] = {
+    [0] = MPI_SUCCESS,
+    [1] = MPI_ERR_BUFFER,
+    [2] = MPI_ERR_COUNT,
+    [3] = MPI_ERR_TYPE,
+    [4] = MPI_ERR_TAG,
+    [5] = MPI_ERR_COMM,
+    [6] = MPI_ERR_RANK,
+    [7] = MPI_ERR_REQUEST,
+    [8] = MPI_ERR_ROOT,
+    [9] = MPI_ERR_GROUP,
+    [10] = MPI_ERR_OP,
+    [11] = MPI_ERR_TOPOLOGY,
+    [12] = MPI_ERR_DIMS,
+    [13] = MPI_ERR_ARG,
+    [14] = MPI_ERR_UNKNOWN,
+    [15] = MPI_ERR_TRUNCATE,
+    [16] = MPI_ERR_OTHER,
+    [17] = MPI_ERR_INTERN,
+    [18] = MPI_ERR_PENDING,
+    [19] = MPI_ERR_IN_STATUS,
+    [20] = MPI_ERR_ACCESS,
+    [21] = MPI_ERR_AMODE,
+    [22] = MPI_ERR_ASSERT,
+    [23] = MPI_ERR_BAD_FILE,
+    [24] = MPI_ERR_BASE,
+    [25] = MPI_ERR_CONVERSION,
+    [26] = MPI_ERR_DISP,
+    [27] = MPI_ERR_DUP_DATAREP,
+    [28] = MPI_ERR_FILE_EXISTS,
+    [29] = MPI_ERR_FILE_IN_USE,
+    [30] = MPI_ERR_FILE,
+    [31] = MPI_ERR_INFO_KEY,
+    [32] = MPI_ERR_INFO_NOKEY,
+    [33] = MPI_ERR_INFO_VALUE,
+    [34] = MPI_ERR_INFO,
+    [35] = MPI_ERR_IO,
+    [36] = MPI_ERR_KEYVAL,
+    [37] = MPI_ERR_LOCKTYPE,
+    [38] = MPI_ERR_NAME,
+    [39] = MPI_ERR_NO_MEM,
+    [40] = MPI_ERR_NOT_SAME,
+    [41] = MPI_ERR_NO_SPACE,
+    [42] = MPI_ERR_NO_SUCH_FILE,
+    [43] = MPI_ERR_PORT,
+    [44] = MPI_ERR_QUOTA,
+    [45] = MPI_ERR_READ_ONLY,
+    [46] = MPI_ERR_RMA_ATTACH,
+    [47] = MPI_ERR_RMA_CONFLICT,
+    [48] = MPI_ERR_RMA_RANGE,
+    [49] = MPI_ERR_RMA_SHARED,
+    [50] = MPI_ERR_RMA_SYNC,
+    [51] = MPI_ERR_SERVICE,
+    [52] = MPI_ERR_SIZE,
+    [53] = MPI_ERR_SPAWN,
+    [54] = MPI_ERR_UNSUPPORTED_DATAREP,
+    [55] = MPI_ERR_UNSUPPORTED_OPERATION,
+    [56] = MPI_ERR_WIN,
+    [57] = MPI_ERR_RMA_FLAVOR,
+#ifdef MPI_ERR_PROC_ABORTED
+    [58] = MPI_ERR_PROC_ABORTED,
+#endif
+#ifdef MPI_ERR_VALUE_TOO_LARGE
+    [59] = MPI_ERR_VALUE_TOO_LARGE,
+#endif
+#ifdef MPI_ERR_SESSION
+    [60] = MPI_ERR_SESSION,
+#endif
+#ifdef MPI_ERR_ERRHANDLER
+    [61] = MPI_ERR_ERRHANDLER,
+#endif
+#ifdef MPI_ERR_ABI
+    [62] = MPI_ERR_ABI,
+#endif
 };
 
 /* Integer constants. These are passed to and returned by MPI as plain
@@ -88,10 +174,12 @@ int c_MPI_THREAD_MULTIPLE = MPI_THREAD_MULTIPLE;
 int c_MPI_COMM_TYPE_SHARED = MPI_COMM_TYPE_SHARED;
 
 int c_MPI_MAX_OBJECT_NAME = MPI_MAX_OBJECT_NAME;
+int c_MPI_MAX_ERROR_STRING = MPI_MAX_ERROR_STRING;
 
 /* Addresses */
 
 void* c_MPI_IN_PLACE = MPI_IN_PLACE;
+MPI_Status* c_MPI_STATUS_IGNORE = MPI_STATUS_IGNORE;
 MPI_Status* c_MPI_STATUSES_IGNORE = MPI_STATUSES_IGNORE;
 
 /* Layout of the native MPI_Status, to convert it to the ABI layout of the
