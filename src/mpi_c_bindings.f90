@@ -154,7 +154,7 @@ module mpi_c_bindings
             integer(c_int) :: c_mpi_bcast
         end function c_mpi_bcast
 
-        function c_mpi_allgather_int(sendbuf, sendcount, sendtype, recvbuf, &
+        function c_mpi_allgather(sendbuf, sendcount, sendtype, recvbuf, &
             recvcount, recvtype, comm) bind(C, name="MPI_Allgather")
             use iso_c_binding, only: c_int, c_ptr
             type(c_ptr), value :: sendbuf
@@ -162,18 +162,7 @@ module mpi_c_bindings
             integer(c_int), value :: sendcount, recvcount
             integer(kind=MPI_HANDLE_KIND), value :: sendtype, recvtype
             integer(kind=MPI_HANDLE_KIND), value :: comm
-            integer(c_int) :: c_mpi_allgather_int
-        end function
-
-        function c_mpi_allgather_real(sendbuf, sendcount, sendtype, recvbuf, &
-            recvcount, recvtype, comm) bind(C, name="MPI_Allgather")
-            use iso_c_binding, only: c_int, c_ptr
-            type(c_ptr), value :: sendbuf
-            type(c_ptr), value :: recvbuf
-            integer(c_int), value :: sendcount, recvcount
-            integer(kind=MPI_HANDLE_KIND), value :: sendtype, recvtype
-            integer(kind=MPI_HANDLE_KIND), value :: comm
-            integer(c_int) :: c_mpi_allgather_real
+            integer(c_int) :: c_mpi_allgather
         end function
 
         function c_mpi_isend(buf, count, datatype, dest, tag, comm, request) bind(C, name="MPI_Isend")
@@ -188,7 +177,7 @@ module mpi_c_bindings
 
         function c_mpi_irecv(buf, count, datatype, source, tag, comm, request) bind(C, name="MPI_Irecv")
             use iso_c_binding, only: c_int, c_double, c_ptr
-            real(c_double), dimension(*), intent(out) :: buf
+            type(c_ptr), value :: buf
             integer(c_int), value :: count, source, tag
            integer(kind=MPI_HANDLE_KIND), value :: datatype
            integer(kind=MPI_HANDLE_KIND), value :: comm
@@ -279,7 +268,7 @@ module mpi_c_bindings
 
         function c_mpi_ssend(buf, count, datatype, dest, tag, comm) bind(C, name="MPI_Ssend")
             use iso_c_binding, only: c_int, c_double, c_ptr
-            real(c_double), dimension(*), intent(in) :: buf
+            type(c_ptr), value :: buf
             integer(c_int), value :: count, dest, tag
             integer(kind=MPI_HANDLE_KIND), value :: datatype
             integer(kind=MPI_HANDLE_KIND), value :: comm

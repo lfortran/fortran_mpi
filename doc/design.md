@@ -215,11 +215,25 @@ program with an explanation in two cases:
 1. Add a `bind(C)` interface to `src/mpi_c_bindings.f90` that mirrors the C
    prototype exactly: handles are `integer(kind=MPI_HANDLE_KIND), value`,
    buffers are `type(c_ptr), value`.
-2. Add the specific procedure to `src/mpi.f90`, under a generic interface.
-   Translate every handle, rank, tag and status, both into and out of the C
-   call. `ierror` is optional; if it is absent and the call fails, print the
-   error.
-3. Add a test in `tests/`. It must also pass with the vendor's `mpif90`.
+2. In `src/mpi.f90`, add one core, e.g. `bcast_core`.
+   - It takes the buffers as `type(c_ptr)`.
+   - It translates every handle, rank, tag and status, both into and out of
+     the C call.
+   - It hands the error code to `set_ierror`, which stores it in the optional
+     `ierror`, or prints it if `ierror` is absent and the call failed.
+3. Add a specific procedure for each type and rank of buffer that a code
+   needs, under the generic interface. It only passes `c_loc` of its buffers
+   to the core, so it is a few lines.
+4. Add a test in `tests/`. It must also pass with the vendor's `mpif90`.
+
+```fortran
+subroutine MPI_Bcast_real_2D(buffer, count, datatype, root, comm, ierror)
+    real(8), dimension(:, :), target :: buffer
+    integer, intent(in) :: count, root, datatype, comm
+    integer, optional, intent(out) :: ierror
+    call bcast_core(c_loc(buffer), count, datatype, root, comm, ierror)
+end subroutine MPI_Bcast_real_2D
+```
 
 ## Moving to the MPI-5 ABI
 
