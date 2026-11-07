@@ -28,6 +28,11 @@ program split_type_1
     implicit none
     integer :: ierr
     call init_mpi
+    ! All ranks of the tests run on one node
+    if (nprocsh /= nproc) then
+        print *, "MPI_COMM_TYPE_SHARED communicator has", nprocsh, "ranks, expected", nproc
+        error stop
+    end if
     call MPI_Finalize (ierr)
     if (ierr /= 0) error stop
 end program split_type_1

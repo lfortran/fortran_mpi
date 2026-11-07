@@ -28,18 +28,23 @@ program cart_shift_1
 
     call MPI_CART_SHIFT(comm_cart, 1, 1, up, down, ierr)
 
-    ! TODO: enable these checks in the future
-    ! if (coords(2) == 0 .and. up /= MPI_PROC_NULL) then
-    !     print *, 'Error: Rank ', rank, ' at (', coords(1), ',', coords(2), &
-    !             ') should have up = MPI_PROC_NULL but got ', up
-    !     error stop
-    ! end if
+    if (coords(2) == 0 .and. up /= MPI_PROC_NULL) then
+        print *, 'Error: Rank ', rank, ' at (', coords(1), ',', coords(2), &
+                ') should have up = MPI_PROC_NULL but got ', up
+        error stop
+    end if
 
-    ! if (coords(2) == dims(2)-1 .and. down /= MPI_PROC_NULL) then
-    !     print *, 'Error: Rank ', rank, ' at (', coords(1), ',', coords(2), &
-    !             ') should have down = MPI_PROC_NULL but got ', down
-    !     error stop
-    ! end if
+    if (coords(2) == dims(2)-1 .and. down /= MPI_PROC_NULL) then
+        print *, 'Error: Rank ', rank, ' at (', coords(1), ',', coords(2), &
+                ') should have down = MPI_PROC_NULL but got ', down
+        error stop
+    end if
+
+    ! Dimension 1 is periodic, so there is always a neighbor
+    if (left == MPI_PROC_NULL .or. right == MPI_PROC_NULL) then
+        print *, 'Error: Rank ', rank, ' has no left or right neighbor'
+        error stop
+    end if
 
     print *, &
           'Rank ', rank, ' at coords (', coords(1), ',', coords(2), &

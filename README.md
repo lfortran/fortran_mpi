@@ -2,6 +2,8 @@
 
 Welcome to the Custom MPI Wrapper project! This repository contains a Fortran-based implementation of MPI wrappers that bind directly to native MPI library routines using ISO_C_BINDING. The goal is to eliminate intermediate C wrappers and call MPI functions directly from Fortran.
 
+The design and its guiding principles are described in [doc/design.md](doc/design.md).
+
 This project currently supports MPI routines such as `MPI_Init`, `MPI_Bcast`, `MPI_Reduce`, `MPI_Comm_split_type`, `MPI_Recv`, `MPI_Ssend`, `MPI_Waitall`, and more. In addition, the repository provides several tests to verify the correctness of these custom wrappers.
 
 
