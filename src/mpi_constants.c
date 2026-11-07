@@ -73,8 +73,10 @@ MPI_Datatype c_datatype_table[256] = {  /* ABI 0x200 .. 0x2ff */
     [0x19] = MPI_INTEGER,
     [0x1a] = MPI_REAL,
     [0x1c] = MPI_DOUBLE_PRECISION,
+    [0x1d] = MPI_DOUBLE_COMPLEX,
     [0x1e] = MPI_CHARACTER,
     [0xd2] = MPI_REAL4,
+    [0xd9] = MPI_INTEGER8,
     [0xda] = MPI_REAL8,
 };
 
