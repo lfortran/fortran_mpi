@@ -33,7 +33,8 @@ This project currently supports MPI routines such as `MPI_Init`, `MPI_Bcast`, `M
 - **Pixi (Optional):**  
   [pixi](https://pixi.sh) provides an environment `<compiler>-<mpi>` for each
   compiler (`gfortran`, `lfortran`, and on Linux also `flang` and `ifx`) and
-  MPI (`openmpi`, `mpich`), the same ones the CI uses. The compiler is passed
+  MPI (`openmpi`, `mpich`, and `mpich-abi` for MPICH's MPI-5 standard ABI
+  library `libmpi_abi`), the same ones the CI uses. The compiler is passed
   to the task:
     ```bash
     pixi run -e lfortran-mpich test 'lfortran --cpp'
@@ -42,8 +43,11 @@ This project currently supports MPI routines such as `MPI_Init`, `MPI_Bcast`, `M
     pixi run -e flang-mpich test 'flang -cpp'
     pixi run -e gfortran-mpich pot3d 'gfortran -cpp'
     pixi run -e lfortran-openmpi pot3d-lfortran 'lfortran --cpp'
+    pixi run -e gfortran-mpich-abi test 'gfortran -cpp'
     ```
-  With Open MPI, pixi also passes `-DOPEN_MPI=yes` to the compiler. POT3D
+  With Open MPI, pixi also passes `-DOPEN_MPI=yes` to the compiler, and with
+  `mpich-abi` it passes `-DMPI_ABI` and links `libmpi_abi` (see
+  [doc/design.md](doc/design.md#the-mpi-5-abi)). POT3D
   with flang or ifx needs a larger stack, `ulimit -s unlimited`.
 
 ---

@@ -2,10 +2,37 @@ module mpi_c_bindings
     use iso_c_binding, only: c_ptr, c_int
     implicit none
 
-#ifdef OPEN_MPI
+! The only preprocessor block in the library. It selects:
+! - the size of a C handle: a pointer in the MPI-5 ABI and in Open MPI,
+!   an int in MPICH;
+! - the functions that convert between C handles and Fortran integers:
+!   MPI_*_toint/fromint in the MPI-5 ABI, MPI_*_c2f/f2c otherwise.
+#if defined(MPI_ABI)
+#define MPI_HANDLE_KIND 8
+#define NAME_COMM_F2C "MPI_Comm_fromint"
+#define NAME_COMM_C2F "MPI_Comm_toint"
+#define NAME_GROUP_F2C "MPI_Group_fromint"
+#define NAME_GROUP_C2F "MPI_Group_toint"
+#define NAME_REQUEST_F2C "MPI_Request_fromint"
+#define NAME_REQUEST_C2F "MPI_Request_toint"
+#define NAME_OP_F2C "MPI_Op_fromint"
+#define NAME_TYPE_F2C "MPI_Type_fromint"
+#define NAME_INFO_F2C "MPI_Info_fromint"
+#else
+#if defined(OPEN_MPI)
 #define MPI_HANDLE_KIND 8
 #else
 #define MPI_HANDLE_KIND 4
+#endif
+#define NAME_COMM_F2C "MPI_Comm_f2c"
+#define NAME_COMM_C2F "MPI_Comm_c2f"
+#define NAME_GROUP_F2C "MPI_Group_f2c"
+#define NAME_GROUP_C2F "MPI_Group_c2f"
+#define NAME_REQUEST_F2C "MPI_Request_f2c"
+#define NAME_REQUEST_C2F "MPI_Request_c2f"
+#define NAME_OP_F2C "MPI_Op_f2c"
+#define NAME_TYPE_F2C "MPI_Type_f2c"
+#define NAME_INFO_F2C "MPI_Info_f2c"
 #endif
 
     integer, parameter :: mpi_handle_kind = MPI_HANDLE_KIND
@@ -53,55 +80,55 @@ module mpi_c_bindings
 
     interface
 
-        function c_mpi_comm_f2c(comm_f) bind(C, name="MPI_Comm_f2c")
+        function c_mpi_comm_f2c(comm_f) bind(C, name=NAME_COMM_F2C)
             use iso_c_binding, only: c_int, c_ptr
             integer(c_int), value :: comm_f
             integer(kind=MPI_HANDLE_KIND) :: c_mpi_comm_f2c
         end function c_mpi_comm_f2c
 
-        function c_mpi_comm_c2f(comm_c) bind(C, name="MPI_Comm_c2f")
+        function c_mpi_comm_c2f(comm_c) bind(C, name=NAME_COMM_C2F)
             use iso_c_binding, only: c_int, c_ptr
             integer(kind=MPI_HANDLE_KIND), value :: comm_c
             integer(c_int) :: c_mpi_comm_c2f
         end function
 
-        function c_mpi_request_c2f(request) bind(C, name="MPI_Request_c2f")
+        function c_mpi_request_c2f(request) bind(C, name=NAME_REQUEST_C2F)
             use iso_c_binding, only: c_int, c_ptr
             integer(kind=MPI_HANDLE_KIND), value :: request
             integer(c_int) :: c_mpi_request_c2f
         end function
 
-        function c_mpi_request_f2c(request) bind(C, name="MPI_Request_f2c")
+        function c_mpi_request_f2c(request) bind(C, name=NAME_REQUEST_F2C)
             use iso_c_binding, only: c_int, c_ptr
             integer(c_int), value :: request
             integer(kind=MPI_HANDLE_KIND) :: c_mpi_request_f2c
         end function c_mpi_request_f2c
 
-        function c_mpi_op_f2c(op_f) bind(C, name="MPI_Op_f2c")
+        function c_mpi_op_f2c(op_f) bind(C, name=NAME_OP_F2C)
             use iso_c_binding, only: c_ptr, c_int
             integer(c_int), value :: op_f
             integer(kind=MPI_HANDLE_KIND) :: c_mpi_op_f2c
         end function c_mpi_op_f2c
 
-        function c_mpi_type_f2c(datatype_f) bind(C, name="MPI_Type_f2c")
+        function c_mpi_type_f2c(datatype_f) bind(C, name=NAME_TYPE_F2C)
             use iso_c_binding, only: c_int
             integer(c_int), value :: datatype_f
             integer(kind=MPI_HANDLE_KIND) :: c_mpi_type_f2c
         end function c_mpi_type_f2c
 
-        function c_mpi_info_f2c(info_f) bind(C, name="MPI_Info_f2c")
+        function c_mpi_info_f2c(info_f) bind(C, name=NAME_INFO_F2C)
             use iso_c_binding, only: c_int, c_ptr
             integer(c_int), value :: info_f
             integer(kind=MPI_HANDLE_KIND) :: c_mpi_info_f2c
         end function c_mpi_info_f2c
 
-        function c_mpi_group_f2c(group_f) bind(C, name="MPI_Group_f2c")
+        function c_mpi_group_f2c(group_f) bind(C, name=NAME_GROUP_F2C)
             use iso_c_binding, only: c_int, c_ptr
             integer(c_int), value :: group_f
             integer(kind=MPI_HANDLE_KIND) :: c_mpi_group_f2c
         end function c_mpi_group_f2c
 
-        function c_mpi_group_c2f(group_c) bind(C, name="MPI_Group_c2f")
+        function c_mpi_group_c2f(group_c) bind(C, name=NAME_GROUP_C2F)
             use iso_c_binding, only: c_int, c_ptr
             integer(kind=MPI_HANDLE_KIND), value :: group_c
             integer(c_int) :: c_mpi_group_c2f
