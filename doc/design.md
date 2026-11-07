@@ -315,5 +315,10 @@ Two things to check when we get there:
   `MPI_Error_class`. Code that compares `ierror` directly with `MPI_ERR_*`
   works only when the native code equals the ABI class.
 - There are no user-defined error handlers or error classes.
-- Each routine supports only the type/kind/rank variants that real codes have
-  needed so far (#64, #138).
+- Each routine supports only the type/kind/rank variants it has specifics
+  for (#64). `MPI_Bcast`, `MPI_Reduce` and `MPI_Allreduce` cover integer,
+  real(4), real(8) and logical, `MPI_Exscan` and `MPI_Scatter` integer,
+  real(4) and real(8), each as scalars and arrays of rank 1 to 3; the other
+  routines cover what real codes have needed so far. One `type(*),
+  dimension(..)` specific per routine will replace them once LFortran
+  supports it (#150).
