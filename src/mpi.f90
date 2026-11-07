@@ -1,6 +1,6 @@
 module mpi
     use mpi_c_bindings, only: MPI_HANDLE_KIND
-    use iso_c_binding, only: c_int, c_char, c_ptr, c_loc, c_null_ptr
+    use iso_c_binding, only: c_int, c_char, c_ptr, c_loc, c_null_ptr, c_associated
     implicit none
 
     ! Every constant has its MPI-5 ABI value (MPI 5.0, chapter 21; the values
@@ -10,6 +10,71 @@ module mpi
     ! MPI library, from src/mpi_constants.c. See doc/design.md.
 
     integer, parameter :: MPI_SUCCESS = 0
+
+    ! Error classes
+    integer, parameter :: MPI_ERR_BUFFER                = 1
+    integer, parameter :: MPI_ERR_COUNT                 = 2
+    integer, parameter :: MPI_ERR_TYPE                  = 3
+    integer, parameter :: MPI_ERR_TAG                   = 4
+    integer, parameter :: MPI_ERR_COMM                  = 5
+    integer, parameter :: MPI_ERR_RANK                  = 6
+    integer, parameter :: MPI_ERR_REQUEST               = 7
+    integer, parameter :: MPI_ERR_ROOT                  = 8
+    integer, parameter :: MPI_ERR_GROUP                 = 9
+    integer, parameter :: MPI_ERR_OP                    = 10
+    integer, parameter :: MPI_ERR_TOPOLOGY              = 11
+    integer, parameter :: MPI_ERR_DIMS                  = 12
+    integer, parameter :: MPI_ERR_ARG                   = 13
+    integer, parameter :: MPI_ERR_UNKNOWN               = 14
+    integer, parameter :: MPI_ERR_TRUNCATE              = 15
+    integer, parameter :: MPI_ERR_OTHER                 = 16
+    integer, parameter :: MPI_ERR_INTERN                = 17
+    integer, parameter :: MPI_ERR_PENDING               = 18
+    integer, parameter :: MPI_ERR_IN_STATUS             = 19
+    integer, parameter :: MPI_ERR_ACCESS                = 20
+    integer, parameter :: MPI_ERR_AMODE                 = 21
+    integer, parameter :: MPI_ERR_ASSERT                = 22
+    integer, parameter :: MPI_ERR_BAD_FILE              = 23
+    integer, parameter :: MPI_ERR_BASE                  = 24
+    integer, parameter :: MPI_ERR_CONVERSION            = 25
+    integer, parameter :: MPI_ERR_DISP                  = 26
+    integer, parameter :: MPI_ERR_DUP_DATAREP           = 27
+    integer, parameter :: MPI_ERR_FILE_EXISTS           = 28
+    integer, parameter :: MPI_ERR_FILE_IN_USE           = 29
+    integer, parameter :: MPI_ERR_FILE                  = 30
+    integer, parameter :: MPI_ERR_INFO_KEY              = 31
+    integer, parameter :: MPI_ERR_INFO_NOKEY            = 32
+    integer, parameter :: MPI_ERR_INFO_VALUE            = 33
+    integer, parameter :: MPI_ERR_INFO                  = 34
+    integer, parameter :: MPI_ERR_IO                    = 35
+    integer, parameter :: MPI_ERR_KEYVAL                = 36
+    integer, parameter :: MPI_ERR_LOCKTYPE              = 37
+    integer, parameter :: MPI_ERR_NAME                  = 38
+    integer, parameter :: MPI_ERR_NO_MEM                = 39
+    integer, parameter :: MPI_ERR_NOT_SAME              = 40
+    integer, parameter :: MPI_ERR_NO_SPACE              = 41
+    integer, parameter :: MPI_ERR_NO_SUCH_FILE          = 42
+    integer, parameter :: MPI_ERR_PORT                  = 43
+    integer, parameter :: MPI_ERR_QUOTA                 = 44
+    integer, parameter :: MPI_ERR_READ_ONLY             = 45
+    integer, parameter :: MPI_ERR_RMA_ATTACH            = 46
+    integer, parameter :: MPI_ERR_RMA_CONFLICT          = 47
+    integer, parameter :: MPI_ERR_RMA_RANGE             = 48
+    integer, parameter :: MPI_ERR_RMA_SHARED            = 49
+    integer, parameter :: MPI_ERR_RMA_SYNC              = 50
+    integer, parameter :: MPI_ERR_SERVICE               = 51
+    integer, parameter :: MPI_ERR_SIZE                  = 52
+    integer, parameter :: MPI_ERR_SPAWN                 = 53
+    integer, parameter :: MPI_ERR_UNSUPPORTED_DATAREP   = 54
+    integer, parameter :: MPI_ERR_UNSUPPORTED_OPERATION = 55
+    integer, parameter :: MPI_ERR_WIN                   = 56
+    integer, parameter :: MPI_ERR_RMA_FLAVOR            = 57
+    integer, parameter :: MPI_ERR_PROC_ABORTED          = 58
+    integer, parameter :: MPI_ERR_VALUE_TOO_LARGE       = 59
+    integer, parameter :: MPI_ERR_SESSION               = 60
+    integer, parameter :: MPI_ERR_ERRHANDLER            = 61
+    integer, parameter :: MPI_ERR_ABI                   = 62
+    integer, parameter :: MPI_ERR_LASTCODE = 16383
 
     ! Thread levels
     integer, parameter :: MPI_THREAD_SINGLE = 0
@@ -27,6 +92,7 @@ module mpi
     integer, parameter :: MPI_COMM_TYPE_SHARED = 221
 
     integer, parameter :: MPI_MAX_OBJECT_NAME = 128
+    integer, parameter :: MPI_MAX_ERROR_STRING = 512
 
     ! Status: MPI_SOURCE, MPI_TAG and MPI_ERROR, then 5 integers that hold
     ! the rest of the native MPI_Status
@@ -64,6 +130,12 @@ module mpi
     ! Info (ABI 0x130)
     integer, parameter :: MPI_INFO_NULL = 304   ! 0x130
 
+    ! Error handlers (ABI 0x140 .. 0x143)
+    integer, parameter :: MPI_ERRHANDLER_NULL = 320  ! 0x140
+    integer, parameter :: MPI_ERRORS_ARE_FATAL = 321 ! 0x141
+    integer, parameter :: MPI_ERRORS_ABORT = 322     ! 0x142
+    integer, parameter :: MPI_ERRORS_RETURN = 323    ! 0x143
+
     ! Requests (ABI 0x180)
     integer, parameter :: MPI_REQUEST_NULL = 384 ! 0x180
 
@@ -85,21 +157,29 @@ module mpi
     ! offset, so that they never collide with a predefined handle.
     integer, parameter :: USER_HANDLE_OFFSET = 4096
 
-    ! TODO: these are values, not addresses, see doc/design.md
-    real(8), parameter :: MPI_IN_PLACE = -1002
-    integer :: MPI_STATUS_IGNORE = 0
-    integer :: MPI_STATUSES_IGNORE(1024)
+    ! MPI_IN_PLACE has a type of its own, so that the generic interfaces
+    ! select the in-place specific procedures at compile time.
+    type :: mpi_in_place_type
+        integer :: unused = 0
+    end type mpi_in_place_type
+    type(mpi_in_place_type) :: MPI_IN_PLACE
+
+    ! MPI_STATUS_IGNORE and MPI_STATUSES_IGNORE are recognized by their
+    ! address, so they must not be copied: is_status_ignore.
+    integer, target :: MPI_STATUS_IGNORE(MPI_STATUS_SIZE)
+    integer, target :: MPI_STATUSES_IGNORE(MPI_STATUS_SIZE, 1)
 
     private :: USER_HANDLE_OFFSET
     private :: check_native_mpi, user_handle_c2f
     private :: op_f2c, comm_f2c, comm_c2f, group_f2c, group_c2f, info_f2c
     private :: request_f2c, request_c2f, datatype_f2c
     private :: rank_f2c, rank_c2f, tag_f2c, thread_level_f2c, thread_level_c2f
-    private :: split_type_f2c, status_c2f, c_string_to_fortran, set_ierror, in_place_or
+    private :: split_type_f2c, status_c2f, c_string_to_fortran, set_ierror
+    private :: errhandler_f2c, error_class_c2f, is_status_ignore, is_statuses_ignore
     private :: ssend_core, recv_core, isend_core, irecv_core, sendrecv_core
     private :: bcast_core, reduce_core, allreduce_core, exscan_core, allgather_core
     private :: gatherv_core, allgatherv_core, scatter_core
-    private :: c_int, c_char, c_ptr, c_loc, c_null_ptr
+    private :: c_int, c_char, c_ptr, c_loc, c_null_ptr, c_associated
 
     interface MPI_Init
         module procedure MPI_Init_proc
@@ -171,7 +251,8 @@ module mpi
 
     interface MPI_Allreduce
         module procedure MPI_Allreduce_scalar
-        module procedure MPI_Allreduce_1D_recv_proc
+        module procedure MPI_Allreduce_in_place_real8_scalar
+        module procedure MPI_Allreduce_in_place_real8_1D
         module procedure MPI_Allreduce_1D_real_proc
         module procedure MPI_Allreduce_1D_int_proc
         module procedure MPI_Allreduce_scalar_logical_proc
@@ -201,7 +282,6 @@ module mpi
 
     interface MPI_Recv
         module procedure MPI_Recv_StatusArray_proc
-        module procedure MPI_Recv_StatusIgnore_proc    
     end interface
 
     interface MPI_Sendrecv
@@ -257,6 +337,18 @@ module mpi
         module procedure MPI_Exscan_scalar_int
     end interface MPI_Exscan
 
+    interface MPI_Comm_set_errhandler
+        module procedure MPI_Comm_set_errhandler_proc
+    end interface MPI_Comm_set_errhandler
+
+    interface MPI_Error_class
+        module procedure MPI_Error_class_proc
+    end interface MPI_Error_class
+
+    interface MPI_Error_string
+        module procedure MPI_Error_string_proc
+    end interface MPI_Error_string
+
     interface MPI_Comm_get_name
         module procedure MPI_Comm_get_name_proc
     end interface MPI_Comm_get_name
@@ -277,7 +369,7 @@ module mpi
         ! Checks that this library was compiled for the MPI library it is
         ! linked with. Called before MPI is initialized.
         use mpi_c_bindings, only: c_sizeof_mpi_comm, c_sizeof_mpi_status, &
-            c_mpi_max_object_name
+            c_mpi_max_object_name, c_mpi_max_error_string
         if (c_sizeof_mpi_comm /= MPI_HANDLE_KIND) then
             print *, "fortran_mpi: compiled with MPI_HANDLE_KIND =", MPI_HANDLE_KIND, &
                 "but the MPI library's handles have", c_sizeof_mpi_comm, "bytes."
@@ -292,6 +384,11 @@ module mpi
         if (c_mpi_max_object_name > MPI_MAX_OBJECT_NAME) then
             print *, "fortran_mpi: the native MPI_MAX_OBJECT_NAME is", &
                 c_mpi_max_object_name, "more than", MPI_MAX_OBJECT_NAME
+            error stop 1
+        end if
+        if (c_mpi_max_error_string > MPI_MAX_ERROR_STRING) then
+            print *, "fortran_mpi: the native MPI_MAX_ERROR_STRING is", &
+                c_mpi_max_error_string, "more than", MPI_MAX_ERROR_STRING
             error stop 1
         end if
     end subroutine check_native_mpi
@@ -407,6 +504,26 @@ module mpi
         end if
     end function datatype_f2c
 
+    integer(kind=MPI_HANDLE_KIND) function errhandler_f2c(errhandler) result(c_errhandler)
+        use mpi_c_bindings, only: c_errhandler_table
+        integer, intent(in) :: errhandler
+        ! There are no user-defined error handlers yet
+        c_errhandler = c_errhandler_table(errhandler - MPI_ERRHANDLER_NULL)
+    end function errhandler_f2c
+
+    integer function error_class_c2f(c_class) result(class)
+        use mpi_c_bindings, only: c_error_class_table
+        integer, intent(in) :: c_class
+        integer :: i
+        do i = 0, ubound(c_error_class_table, 1)
+            if (c_class == c_error_class_table(i)) then
+                class = i
+                return
+            end if
+        end do
+        class = MPI_ERR_UNKNOWN
+    end function error_class_c2f
+
     ! Ranks and tags are passed unchanged, except for the special values,
     ! which are all negative.
 
@@ -502,13 +619,32 @@ module mpi
         end if
     end function split_type_f2c
 
+    logical function is_status_ignore(status)
+        ! Whether the status argument is MPI_STATUS_IGNORE. The pointers are
+        ! compared as variables, which works around an LFortran bug with
+        ! c_associated(c_loc(a), c_loc(b)).
+        integer, target :: status(MPI_STATUS_SIZE)
+        type(c_ptr) :: p, ignore
+        p = c_loc(status)
+        ignore = c_loc(MPI_STATUS_IGNORE)
+        is_status_ignore = c_associated(p, ignore)
+    end function is_status_ignore
+
+    logical function is_statuses_ignore(statuses)
+        integer, target :: statuses(MPI_STATUS_SIZE, *)
+        type(c_ptr) :: p, ignore
+        p = c_loc(statuses)
+        ignore = c_loc(MPI_STATUSES_IGNORE)
+        is_statuses_ignore = c_associated(p, ignore)
+    end function is_statuses_ignore
+
     subroutine status_c2f(c_status, status)
         ! Converts a native MPI_Status, viewed as an array of C ints, to the
         ! ABI layout: MPI_SOURCE, MPI_TAG, MPI_ERROR, then the remaining
         ! native integers in order.
         use mpi_c_bindings, only: c_sizeof_mpi_status, c_offsetof_mpi_source, &
             c_offsetof_mpi_tag, c_offsetof_mpi_error
-        integer(c_int), intent(in) :: c_status(MPI_STATUS_SIZE)
+        integer(c_int), intent(in) :: c_status(*)
         integer, intent(out) :: status(MPI_STATUS_SIZE)
         integer :: i, j, i_source, i_tag, i_error
 
@@ -823,34 +959,50 @@ module mpi
     end subroutine MPI_Barrier_proc
 
     subroutine MPI_Wait_proc(request, status, ierror)
-        use mpi_c_bindings, only: c_mpi_wait
+        use mpi_c_bindings, only: c_mpi_wait, c_mpi_status_ignore
         integer, intent(inout) :: request
-        integer, intent(out) :: status(MPI_STATUS_SIZE)
+        integer, target, intent(out) :: status(MPI_STATUS_SIZE)
         integer, optional, intent(out) :: ierror
         integer(kind=MPI_HANDLE_KIND) :: c_request
         integer(c_int), target :: c_status(MPI_STATUS_SIZE)
         integer(c_int) :: local_ierr
         c_request = request_f2c(request)
-        local_ierr = c_mpi_wait(c_request, c_loc(c_status))
+        if (is_status_ignore(status)) then
+            local_ierr = c_mpi_wait(c_request, c_mpi_status_ignore)
+        else
+            local_ierr = c_mpi_wait(c_request, c_loc(c_status))
+            if (local_ierr == MPI_SUCCESS) call status_c2f(c_status, status)
+        end if
         request = request_c2f(c_request)
-        if (local_ierr == MPI_SUCCESS) call status_c2f(c_status, status)
         call set_ierror(local_ierr, "MPI_Wait", ierror)
     end subroutine MPI_Wait_proc
 
     subroutine MPI_Waitall_proc(count, array_of_requests, array_of_statuses, ierror)
-        use mpi_c_bindings, only: c_mpi_waitall, c_mpi_statuses_ignore
+        use mpi_c_bindings, only: c_mpi_waitall, c_mpi_statuses_ignore, c_sizeof_mpi_status
         integer, intent(in) :: count
         integer, dimension(count), intent(inout) :: array_of_requests
-        integer, dimension(*), intent(out) :: array_of_statuses
+        integer, target, intent(out) :: array_of_statuses(MPI_STATUS_SIZE, *)
         integer, optional, intent(out) :: ierror
         integer(kind=MPI_HANDLE_KIND) :: c_requests(count)
+        ! The native statuses, as C ints; each has c_sizeof_mpi_status bytes
+        integer(c_int), allocatable, target :: c_statuses(:)
         integer(c_int) :: local_ierr
-        integer :: i
-        ! TODO: array_of_statuses is ignored, see doc/design.md
+        integer :: i, n
         do i = 1, count
             c_requests(i) = request_f2c(array_of_requests(i))
         end do
-        local_ierr = c_mpi_waitall(count, c_requests, c_mpi_statuses_ignore)
+        if (is_statuses_ignore(array_of_statuses)) then
+            local_ierr = c_mpi_waitall(count, c_requests, c_mpi_statuses_ignore)
+        else
+            n = c_sizeof_mpi_status/4
+            allocate(c_statuses(n*max(count, 1)))
+            local_ierr = c_mpi_waitall(count, c_requests, c_loc(c_statuses))
+            if (local_ierr == MPI_SUCCESS) then
+                do i = 1, count
+                    call status_c2f(c_statuses((i-1)*n+1:i*n), array_of_statuses(:, i))
+                end do
+            end if
+        end if
         do i = 1, count
             array_of_requests(i) = request_c2f(c_requests(i))
         end do
@@ -869,16 +1021,21 @@ module mpi
     end subroutine ssend_core
 
     subroutine recv_core(buf, count, datatype, source, tag, comm, status, ierror)
-        use mpi_c_bindings, only: c_mpi_recv
+        use mpi_c_bindings, only: c_mpi_recv, c_mpi_status_ignore
         type(c_ptr), intent(in) :: buf
         integer, intent(in) :: count, datatype, source, tag, comm
-        integer, intent(out) :: status(MPI_STATUS_SIZE)
+        integer, target, intent(out) :: status(MPI_STATUS_SIZE)
         integer, optional, intent(out) :: ierror
         integer(c_int), target :: c_status(MPI_STATUS_SIZE)
         integer(c_int) :: local_ierr
-        local_ierr = c_mpi_recv(buf, count, datatype_f2c(datatype), rank_f2c(source), &
-            tag_f2c(tag), comm_f2c(comm), c_loc(c_status))
-        if (local_ierr == MPI_SUCCESS) call status_c2f(c_status, status)
+        if (is_status_ignore(status)) then
+            local_ierr = c_mpi_recv(buf, count, datatype_f2c(datatype), rank_f2c(source), &
+                tag_f2c(tag), comm_f2c(comm), c_mpi_status_ignore)
+        else
+            local_ierr = c_mpi_recv(buf, count, datatype_f2c(datatype), rank_f2c(source), &
+                tag_f2c(tag), comm_f2c(comm), c_loc(c_status))
+            if (local_ierr == MPI_SUCCESS) call status_c2f(c_status, status)
+        end if
         call set_ierror(local_ierr, "MPI_Recv", ierror)
     end subroutine recv_core
 
@@ -912,18 +1069,26 @@ module mpi
 
     subroutine sendrecv_core(sendbuf, sendcount, sendtype, dest, sendtag, &
             recvbuf, recvcount, recvtype, source, recvtag, comm, status, ierror)
-        use mpi_c_bindings, only: c_mpi_sendrecv
+        use mpi_c_bindings, only: c_mpi_sendrecv, c_mpi_status_ignore
         type(c_ptr), intent(in) :: sendbuf, recvbuf
         integer, intent(in) :: sendcount, sendtype, dest, sendtag
         integer, intent(in) :: recvcount, recvtype, source, recvtag, comm
-        integer, intent(out) :: status(MPI_STATUS_SIZE)
+        integer, target, intent(out) :: status(MPI_STATUS_SIZE)
         integer, optional, intent(out) :: ierror
         integer(c_int), target :: c_status(MPI_STATUS_SIZE)
+        type(c_ptr) :: c_status_ptr
         integer(c_int) :: local_ierr
+        if (is_status_ignore(status)) then
+            c_status_ptr = c_mpi_status_ignore
+        else
+            c_status_ptr = c_loc(c_status)
+        end if
         local_ierr = c_mpi_sendrecv(sendbuf, sendcount, datatype_f2c(sendtype), &
             rank_f2c(dest), tag_f2c(sendtag), recvbuf, recvcount, datatype_f2c(recvtype), &
-            rank_f2c(source), tag_f2c(recvtag), comm_f2c(comm), c_loc(c_status))
-        if (local_ierr == MPI_SUCCESS) call status_c2f(c_status, status)
+            rank_f2c(source), tag_f2c(recvtag), comm_f2c(comm), c_status_ptr)
+        if (local_ierr == MPI_SUCCESS .and. .not. is_status_ignore(status)) then
+            call status_c2f(c_status, status)
+        end if
         call set_ierror(local_ierr, "MPI_Sendrecv", ierror)
     end subroutine sendrecv_core
 
@@ -939,19 +1104,10 @@ module mpi
     subroutine MPI_Recv_StatusArray_proc(buf, count, datatype, source, tag, comm, status, ierror)
         real(8), dimension(*), intent(inout), target :: buf
         integer, intent(in)  :: count, source, tag, datatype, comm
-        integer, intent(out) :: status(MPI_STATUS_SIZE)
+        integer, target, intent(out) :: status(MPI_STATUS_SIZE)
         integer, optional, intent(out) :: ierror
         call recv_core(c_loc(buf), count, datatype, source, tag, comm, status, ierror)
     end subroutine MPI_Recv_StatusArray_proc
-
-    subroutine MPI_Recv_StatusIgnore_proc(buf, count, datatype, source, tag, comm, status, ierror)
-        real(8), dimension(*), intent(inout), target :: buf
-        integer, intent(in)  :: count, source, tag, datatype, comm
-        integer, intent(out) :: status
-        integer, optional, intent(out) :: ierror
-        integer :: ignored_status(MPI_STATUS_SIZE)
-        call recv_core(c_loc(buf), count, datatype, source, tag, comm, ignored_status, ierror)
-    end subroutine MPI_Recv_StatusIgnore_proc
 
     subroutine MPI_Isend_2d(buf, count, datatype, dest, tag, comm, request, ierror)
         real(8), dimension(:, :), intent(in), target :: buf
@@ -991,7 +1147,7 @@ module mpi
         integer, intent(in) :: recvcount, source, recvtag
         integer, intent(in) :: comm
         integer, intent(in) :: sendtype, recvtype
-        integer, intent(out) :: status(MPI_STATUS_SIZE)
+        integer, target, intent(out) :: status(MPI_STATUS_SIZE)
         integer, optional, intent(out) :: ierror
         call sendrecv_core(c_loc(sendbuf), sendcount, sendtype, dest, sendtag, &
             c_loc(recvbuf), recvcount, recvtype, source, recvtag, comm, status, ierror)
@@ -1081,18 +1237,6 @@ module mpi
             "MPI_Scatter", ierror)
     end subroutine scatter_core
 
-    type(c_ptr) function in_place_or(sendbuf_ptr, is_in_place) result(ptr)
-        ! TODO: MPI_IN_PLACE is recognized by its value, see doc/design.md
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(c_ptr), intent(in) :: sendbuf_ptr
-        logical, intent(in) :: is_in_place
-        if (is_in_place) then
-            ptr = c_mpi_in_place
-        else
-            ptr = sendbuf_ptr
-        end if
-    end function in_place_or
-
     subroutine MPI_Bcast_int_scalar(buffer, count, datatype, root, comm, ierror)
         integer, target :: buffer
         integer, intent(in) :: count, root
@@ -1124,18 +1268,28 @@ module mpi
         real(8), intent(out), target :: recvbuf
         integer, intent(in) :: count, datatype, op, comm
         integer, intent(out), optional :: ierror
-        call allreduce_core(in_place_or(c_loc(sendbuf), sendbuf == MPI_IN_PLACE), &
-            c_loc(recvbuf), count, datatype, op, comm, ierror)
+        call allreduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, ierror)
     end subroutine MPI_Allreduce_scalar
 
-    subroutine MPI_Allreduce_1D_recv_proc(sendbuf, recvbuf, count, datatype, op, comm, ierror)
-        real(8), intent(in), target :: sendbuf
-        real(8), dimension(:), intent(out), target :: recvbuf
+    subroutine MPI_Allreduce_in_place_real8_scalar(sendbuf, recvbuf, count, datatype, op, &
+            comm, ierror)
+        use mpi_c_bindings, only: c_mpi_in_place
+        type(mpi_in_place_type), intent(in) :: sendbuf
+        real(8), intent(inout), target :: recvbuf
         integer, intent(in) :: count, datatype, op, comm
         integer, intent(out), optional :: ierror
-        call allreduce_core(in_place_or(c_loc(sendbuf), sendbuf == MPI_IN_PLACE), &
-            c_loc(recvbuf), count, datatype, op, comm, ierror)
-    end subroutine MPI_Allreduce_1D_recv_proc
+        call allreduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, comm, ierror)
+    end subroutine MPI_Allreduce_in_place_real8_scalar
+
+    subroutine MPI_Allreduce_in_place_real8_1D(sendbuf, recvbuf, count, datatype, op, &
+            comm, ierror)
+        use mpi_c_bindings, only: c_mpi_in_place
+        type(mpi_in_place_type), intent(in) :: sendbuf
+        real(8), dimension(:), intent(inout), target :: recvbuf
+        integer, intent(in) :: count, datatype, op, comm
+        integer, intent(out), optional :: ierror
+        call allreduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, comm, ierror)
+    end subroutine MPI_Allreduce_in_place_real8_1D
 
     subroutine MPI_Allreduce_1D_real_proc(sendbuf, recvbuf, count, datatype, op, comm, ierror)
         real(8), dimension(:), intent(in), target :: sendbuf
@@ -1203,7 +1357,7 @@ module mpi
         integer, intent(in) :: root
         integer, intent(in) :: comm
         integer, optional, intent(out) :: ierror
-        call gatherv_core(in_place_or(c_loc(sendbuf), sendbuf(1) == MPI_IN_PLACE), sendcount, &
+        call gatherv_core(c_loc(sendbuf), sendcount, &
             sendtype, c_loc(recvbuf), recvcounts, displs, recvtype, root, comm, ierror)
     end subroutine MPI_Gatherv_int
 
@@ -1219,7 +1373,7 @@ module mpi
         integer, intent(in) :: root
         integer, intent(in) :: comm
         integer, optional, intent(out) :: ierror
-        call gatherv_core(in_place_or(c_loc(sendbuf), sendbuf(1) == MPI_IN_PLACE), sendcount, &
+        call gatherv_core(c_loc(sendbuf), sendcount, &
             sendtype, c_loc(recvbuf), recvcounts, displs, recvtype, root, comm, ierror)
     end subroutine MPI_Gatherv_real
 
@@ -1250,7 +1404,7 @@ module mpi
         integer, intent(in) :: recvtype
         integer, intent(in) :: comm
         integer, optional, intent(out) :: ierror
-        call allgatherv_core(in_place_or(c_loc(sendbuf), sendbuf(1) == MPI_IN_PLACE), &
+        call allgatherv_core(c_loc(sendbuf), &
             sendcount, sendtype, c_loc(recvbuf), recvcounts, displs, recvtype, comm, ierror)
     end subroutine MPI_Allgatherv_int
 
@@ -1265,7 +1419,7 @@ module mpi
         integer, intent(in) :: recvtype
         integer, intent(in) :: comm
         integer, optional, intent(out) :: ierror
-        call allgatherv_core(in_place_or(c_loc(sendbuf), sendbuf(1) == MPI_IN_PLACE), &
+        call allgatherv_core(c_loc(sendbuf), &
             sendcount, sendtype, c_loc(recvbuf), recvcounts, displs, recvtype, comm, ierror)
     end subroutine MPI_Allgatherv_real
 
@@ -1280,8 +1434,43 @@ module mpi
         integer, intent(in) :: root
         integer, intent(in) :: comm
         integer, optional, intent(out) :: ierror
-        call scatter_core(in_place_or(c_loc(sendbuf), sendbuf(1) == MPI_IN_PLACE), sendcount, &
+        call scatter_core(c_loc(sendbuf), sendcount, &
             sendtype, c_loc(recvbuf), recvcount, recvtype, root, comm, ierror)
     end subroutine MPI_Scatter_real
+
+    ! Errors
+
+    subroutine MPI_Comm_set_errhandler_proc(comm, errhandler, ierror)
+        use mpi_c_bindings, only: c_mpi_comm_set_errhandler
+        integer, intent(in) :: comm, errhandler
+        integer, optional, intent(out) :: ierror
+        call set_ierror(c_mpi_comm_set_errhandler(comm_f2c(comm), errhandler_f2c(errhandler)), &
+            "MPI_Comm_set_errhandler", ierror)
+    end subroutine MPI_Comm_set_errhandler_proc
+
+    subroutine MPI_Error_class_proc(errorcode, errorclass, ierror)
+        ! Error codes are native; their classes are translated.
+        use mpi_c_bindings, only: c_mpi_error_class
+        integer, intent(in) :: errorcode
+        integer, intent(out) :: errorclass
+        integer, optional, intent(out) :: ierror
+        integer(c_int) :: c_class, local_ierr
+        local_ierr = c_mpi_error_class(errorcode, c_class)
+        errorclass = error_class_c2f(c_class)
+        call set_ierror(local_ierr, "MPI_Error_class", ierror)
+    end subroutine MPI_Error_class_proc
+
+    subroutine MPI_Error_string_proc(errorcode, string, resultlen, ierror)
+        use mpi_c_bindings, only: c_mpi_error_string
+        integer, intent(in) :: errorcode
+        character(len=*), intent(out) :: string
+        integer, intent(out) :: resultlen
+        integer, optional, intent(out) :: ierror
+        character(kind=c_char) :: c_string(MPI_MAX_ERROR_STRING)
+        integer(c_int) :: local_ierr
+        local_ierr = c_mpi_error_string(errorcode, c_string, resultlen)
+        call c_string_to_fortran(c_string, resultlen, string)
+        call set_ierror(local_ierr, "MPI_Error_string", ierror)
+    end subroutine MPI_Error_string_proc
 
 end module mpi

@@ -18,7 +18,11 @@ module mpi_c_bindings
     integer(kind=MPI_HANDLE_KIND), bind(C, name="c_group_table") :: c_group_table(0:1)
     integer(kind=MPI_HANDLE_KIND), bind(C, name="c_info_table") :: c_info_table(0:0)
     integer(kind=MPI_HANDLE_KIND), bind(C, name="c_request_table") :: c_request_table(0:0)
+    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_errhandler_table") :: c_errhandler_table(0:3)
     integer(kind=MPI_HANDLE_KIND), bind(C, name="c_datatype_table") :: c_datatype_table(0:255)
+
+    ! Native error classes, indexed by their ABI value
+    integer(c_int), bind(C, name="c_error_class_table") :: c_error_class_table(0:62)
 
     integer(c_int), bind(C, name="c_MPI_ANY_SOURCE") :: c_mpi_any_source
     integer(c_int), bind(C, name="c_MPI_ANY_TAG") :: c_mpi_any_tag
@@ -34,8 +38,10 @@ module mpi_c_bindings
     integer(c_int), bind(C, name="c_MPI_COMM_TYPE_SHARED") :: c_mpi_comm_type_shared
 
     integer(c_int), bind(C, name="c_MPI_MAX_OBJECT_NAME") :: c_mpi_max_object_name
+    integer(c_int), bind(C, name="c_MPI_MAX_ERROR_STRING") :: c_mpi_max_error_string
 
     type(c_ptr), bind(C, name="c_MPI_IN_PLACE") :: c_mpi_in_place
+    type(c_ptr), bind(C, name="c_MPI_STATUS_IGNORE") :: c_mpi_status_ignore
     type(c_ptr), bind(C, name="c_MPI_STATUSES_IGNORE") :: c_mpi_statuses_ignore
 
     integer(c_int), bind(C, name="c_sizeof_MPI_Status") :: c_sizeof_mpi_status
@@ -442,6 +448,28 @@ module mpi_c_bindings
             integer(c_int), intent(out) :: resultlen
             integer(c_int) :: c_mpi_type_get_name
         end function c_mpi_type_get_name
+
+        function c_mpi_comm_set_errhandler(comm, errhandler) bind(C, name="MPI_Comm_set_errhandler")
+            use iso_c_binding, only: c_int
+            integer(kind=MPI_HANDLE_KIND), value :: comm
+            integer(kind=MPI_HANDLE_KIND), value :: errhandler
+            integer(c_int) :: c_mpi_comm_set_errhandler
+        end function c_mpi_comm_set_errhandler
+
+        function c_mpi_error_class(errorcode, errorclass) bind(C, name="MPI_Error_class")
+            use iso_c_binding, only: c_int
+            integer(c_int), value :: errorcode
+            integer(c_int), intent(out) :: errorclass
+            integer(c_int) :: c_mpi_error_class
+        end function c_mpi_error_class
+
+        function c_mpi_error_string(errorcode, string, resultlen) bind(C, name="MPI_Error_string")
+            use iso_c_binding, only: c_int, c_char
+            integer(c_int), value :: errorcode
+            character(kind=c_char), intent(out) :: string(*)
+            integer(c_int), intent(out) :: resultlen
+            integer(c_int) :: c_mpi_error_string
+        end function c_mpi_error_string
 
     end interface
 end module mpi_c_bindings
