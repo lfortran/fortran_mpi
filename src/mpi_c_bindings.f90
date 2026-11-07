@@ -449,6 +449,30 @@ module mpi_c_bindings
             integer(c_int) :: c_mpi_type_get_name
         end function c_mpi_type_get_name
 
+        function c_mpi_abort(comm, errorcode) bind(C, name="MPI_Abort")
+            use iso_c_binding, only: c_int
+            integer(kind=MPI_HANDLE_KIND), value :: comm
+            integer(c_int), value :: errorcode
+            integer(c_int) :: c_mpi_abort
+        end function c_mpi_abort
+
+        function c_mpi_comm_split(comm, color, key, newcomm) bind(C, name="MPI_Comm_split")
+            use iso_c_binding, only: c_int
+            integer(kind=MPI_HANDLE_KIND), value :: comm
+            integer(c_int), value :: color, key
+            integer(kind=MPI_HANDLE_KIND), intent(out) :: newcomm
+            integer(c_int) :: c_mpi_comm_split
+        end function c_mpi_comm_split
+
+        function c_mpi_send(buf, count, datatype, dest, tag, comm) bind(C, name="MPI_Send")
+            use iso_c_binding, only: c_int, c_ptr
+            type(c_ptr), value :: buf
+            integer(c_int), value :: count, dest, tag
+            integer(kind=MPI_HANDLE_KIND), value :: datatype
+            integer(kind=MPI_HANDLE_KIND), value :: comm
+            integer(c_int) :: c_mpi_send
+        end function c_mpi_send
+
         function c_mpi_comm_set_errhandler(comm, errhandler) bind(C, name="MPI_Comm_set_errhandler")
             use iso_c_binding, only: c_int
             integer(kind=MPI_HANDLE_KIND), value :: comm
