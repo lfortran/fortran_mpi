@@ -5,3 +5,14 @@ mpi_program
 # pixi environments
 .pixi/*
 !.pixi/config.toml
+
+# Test executables and POT3D run outputs
+/tests/*
+!/tests/*.f90
+!/tests/*.sh
+!/tests/pot3d/
+/tests/pot3d/bin/*
+!/tests/pot3d/bin/empty
+/tests/pot3d/src/pot3d
+/tests/pot3d/testsuite/*/run/*
+!/tests/pot3d/testsuite/*/run/.gitkeep
