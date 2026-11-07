@@ -11,6 +11,8 @@ module mpi
 
     integer, parameter :: MPI_SUCCESS = 0
 
+    integer, parameter :: MPI_INTEGER_KIND = kind(0)
+
     ! Error classes
     integer, parameter :: MPI_ERR_BUFFER                = 1
     integer, parameter :: MPI_ERR_COUNT                 = 2
@@ -174,9 +176,9 @@ module mpi
     private :: op_f2c, comm_f2c, comm_c2f, group_f2c, group_c2f, info_f2c
     private :: request_f2c, request_c2f, datatype_f2c
     private :: rank_f2c, rank_c2f, tag_f2c, thread_level_f2c, thread_level_c2f
-    private :: split_type_f2c, status_c2f, c_string_to_fortran, set_ierror
+    private :: split_type_f2c, color_f2c, status_c2f, c_string_to_fortran, set_ierror
     private :: errhandler_f2c, error_class_c2f, is_status_ignore, is_statuses_ignore
-    private :: ssend_core, recv_core, isend_core, irecv_core, sendrecv_core
+    private :: send_core, ssend_core, recv_core, isend_core, irecv_core, sendrecv_core
     private :: bcast_core, reduce_core, allreduce_core, exscan_core, allgather_core
     private :: gatherv_core, allgatherv_core, scatter_core
     private :: c_int, c_char, c_ptr, c_loc, c_null_ptr, c_associated
@@ -188,6 +190,10 @@ module mpi
     interface MPI_Init_thread
         module procedure MPI_Init_thread_proc
     end interface MPI_Init_thread
+
+    interface MPI_Abort
+        module procedure MPI_Abort_proc
+    end interface MPI_Abort
 
     interface MPI_Finalize
         module procedure MPI_Finalize_proc
@@ -235,6 +241,9 @@ module mpi
         module procedure MPI_Bcast_real_2D
         module procedure MPI_Bcast_real4_2D
         module procedure MPI_Bcast_character
+        module procedure MPI_Bcast_real4_scalar
+        module procedure MPI_Bcast_real8_scalar
+        module procedure MPI_Bcast_real4_3D
     end interface MPI_Bcast
 
     interface MPI_Allgather
@@ -286,6 +295,10 @@ module mpi
         module procedure MPI_Comm_rank_proc
     end interface
 
+    interface MPI_Comm_split
+        module procedure MPI_Comm_split_proc
+    end interface MPI_Comm_split
+
     interface MPI_Comm_split_type
         module procedure MPI_Comm_split_type_proc
     end interface
@@ -293,6 +306,15 @@ module mpi
     interface MPI_Recv
         module procedure MPI_Recv_StatusArray_proc
         module procedure MPI_Recv_real4
+        module procedure MPI_Recv_real4_scalar
+        module procedure MPI_Recv_real8_scalar
+    end interface
+
+    interface MPI_Send
+        module procedure MPI_Send_real8
+        module procedure MPI_Send_real4
+        module procedure MPI_Send_real8_scalar
+        module procedure MPI_Send_real4_scalar
     end interface
 
     interface MPI_Sendrecv
@@ -343,6 +365,9 @@ module mpi
 
     interface MPI_Reduce
         module procedure MPI_Reduce_scalar_int
+        module procedure MPI_Reduce_real4_scalar
+        module procedure MPI_Reduce_real8_scalar
+        module procedure MPI_Reduce_in_place_real8_scalar
     end interface
 
     interface MPI_Exscan
@@ -631,6 +656,16 @@ module mpi
         end if
     end function split_type_f2c
 
+    integer function color_f2c(color) result(c_color)
+        use mpi_c_bindings, only: c_mpi_undefined
+        integer, intent(in) :: color
+        if (color == MPI_UNDEFINED) then
+            c_color = c_mpi_undefined
+        else
+            c_color = color
+        end if
+    end function color_f2c
+
     logical function is_status_ignore(status)
         ! Whether the status argument is MPI_STATUS_IGNORE. The pointers are
         ! compared as variables, which works around an LFortran bug with
@@ -748,6 +783,13 @@ module mpi
         call set_ierror(c_mpi_finalize(), "MPI_Finalize", ierr)
     end subroutine MPI_Finalize_proc
 
+    subroutine MPI_Abort_proc(comm, errorcode, ierror)
+        use mpi_c_bindings, only: c_mpi_abort
+        integer, intent(in) :: comm, errorcode
+        integer, optional, intent(out) :: ierror
+        call set_ierror(c_mpi_abort(comm_f2c(comm), errorcode), "MPI_Abort", ierror)
+    end subroutine MPI_Abort_proc
+
     function MPI_Wtime_proc() result(time)
         use mpi_c_bindings, only: c_mpi_wtime
         real(8) :: time
@@ -854,6 +896,18 @@ module mpi
         comm = comm_c2f(c_comm)
         call set_ierror(local_ierr, "MPI_Comm_free", ierror)
     end subroutine MPI_Comm_free_proc
+
+    subroutine MPI_Comm_split_proc(comm, color, key, newcomm, ierror)
+        use mpi_c_bindings, only: c_mpi_comm_split
+        integer, intent(in) :: comm, color, key
+        integer, intent(out) :: newcomm
+        integer, optional, intent(out) :: ierror
+        integer(kind=MPI_HANDLE_KIND) :: c_newcomm
+        integer(c_int) :: local_ierr
+        local_ierr = c_mpi_comm_split(comm_f2c(comm), color_f2c(color), key, c_newcomm)
+        newcomm = comm_c2f(c_newcomm)
+        call set_ierror(local_ierr, "MPI_Comm_split", ierror)
+    end subroutine MPI_Comm_split_proc
 
     subroutine MPI_Comm_split_type_proc(comm, split_type, key, info, newcomm, ierror)
         use mpi_c_bindings, only: c_mpi_comm_split_type
@@ -1023,6 +1077,15 @@ module mpi
 
     ! Point-to-point
 
+    subroutine send_core(buf, count, datatype, dest, tag, comm, ierror)
+        use mpi_c_bindings, only: c_mpi_send
+        type(c_ptr), intent(in) :: buf
+        integer, intent(in) :: count, datatype, dest, tag, comm
+        integer, optional, intent(out) :: ierror
+        call set_ierror(c_mpi_send(buf, count, datatype_f2c(datatype), rank_f2c(dest), &
+            tag_f2c(tag), comm_f2c(comm)), "MPI_Send", ierror)
+    end subroutine send_core
+
     subroutine ssend_core(buf, count, datatype, dest, tag, comm, ierror)
         use mpi_c_bindings, only: c_mpi_ssend
         type(c_ptr), intent(in) :: buf
@@ -1120,6 +1183,34 @@ module mpi
         call ssend_core(c_loc(buf), count, datatype, dest, tag, comm, ierror)
     end subroutine MPI_Ssend_real4
 
+    subroutine MPI_Send_real8(buf, count, datatype, dest, tag, comm, ierror)
+        real(8), dimension(*), intent(in), target :: buf
+        integer, intent(in) :: count, dest, tag, datatype, comm
+        integer, optional, intent(out) :: ierror
+        call send_core(c_loc(buf), count, datatype, dest, tag, comm, ierror)
+    end subroutine MPI_Send_real8
+
+    subroutine MPI_Send_real4(buf, count, datatype, dest, tag, comm, ierror)
+        real(4), dimension(*), intent(in), target :: buf
+        integer, intent(in) :: count, dest, tag, datatype, comm
+        integer, optional, intent(out) :: ierror
+        call send_core(c_loc(buf), count, datatype, dest, tag, comm, ierror)
+    end subroutine MPI_Send_real4
+
+    subroutine MPI_Send_real8_scalar(buf, count, datatype, dest, tag, comm, ierror)
+        real(8), intent(in), target :: buf
+        integer, intent(in) :: count, dest, tag, datatype, comm
+        integer, optional, intent(out) :: ierror
+        call send_core(c_loc(buf), count, datatype, dest, tag, comm, ierror)
+    end subroutine MPI_Send_real8_scalar
+
+    subroutine MPI_Send_real4_scalar(buf, count, datatype, dest, tag, comm, ierror)
+        real(4), intent(in), target :: buf
+        integer, intent(in) :: count, dest, tag, datatype, comm
+        integer, optional, intent(out) :: ierror
+        call send_core(c_loc(buf), count, datatype, dest, tag, comm, ierror)
+    end subroutine MPI_Send_real4_scalar
+
     subroutine MPI_Recv_StatusArray_proc(buf, count, datatype, source, tag, comm, status, ierror)
         real(8), dimension(*), intent(inout), target :: buf
         integer, intent(in)  :: count, source, tag, datatype, comm
@@ -1135,6 +1226,22 @@ module mpi
         integer, optional, intent(out) :: ierror
         call recv_core(c_loc(buf), count, datatype, source, tag, comm, status, ierror)
     end subroutine MPI_Recv_real4
+
+    subroutine MPI_Recv_real8_scalar(buf, count, datatype, source, tag, comm, status, ierror)
+        real(8), intent(inout), target :: buf
+        integer, intent(in)  :: count, source, tag, datatype, comm
+        integer, target, intent(out) :: status(MPI_STATUS_SIZE)
+        integer, optional, intent(out) :: ierror
+        call recv_core(c_loc(buf), count, datatype, source, tag, comm, status, ierror)
+    end subroutine MPI_Recv_real8_scalar
+
+    subroutine MPI_Recv_real4_scalar(buf, count, datatype, source, tag, comm, status, ierror)
+        real(4), intent(inout), target :: buf
+        integer, intent(in)  :: count, source, tag, datatype, comm
+        integer, target, intent(out) :: status(MPI_STATUS_SIZE)
+        integer, optional, intent(out) :: ierror
+        call recv_core(c_loc(buf), count, datatype, source, tag, comm, status, ierror)
+    end subroutine MPI_Recv_real4_scalar
 
     subroutine MPI_Isend_2d(buf, count, datatype, dest, tag, comm, request, ierror)
         real(8), dimension(:, :), intent(in), target :: buf
@@ -1320,6 +1427,27 @@ module mpi
         call bcast_core(c_loc(buffer), count, datatype, root, comm, ierror)
     end subroutine MPI_Bcast_character
 
+    subroutine MPI_Bcast_real8_scalar(buffer, count, datatype, root, comm, ierror)
+        real(8), target :: buffer
+        integer, intent(in) :: count, root, datatype, comm
+        integer, optional, intent(out) :: ierror
+        call bcast_core(c_loc(buffer), count, datatype, root, comm, ierror)
+    end subroutine MPI_Bcast_real8_scalar
+
+    subroutine MPI_Bcast_real4_scalar(buffer, count, datatype, root, comm, ierror)
+        real(4), target :: buffer
+        integer, intent(in) :: count, root, datatype, comm
+        integer, optional, intent(out) :: ierror
+        call bcast_core(c_loc(buffer), count, datatype, root, comm, ierror)
+    end subroutine MPI_Bcast_real4_scalar
+
+    subroutine MPI_Bcast_real4_3D(buffer, count, datatype, root, comm, ierror)
+        real(4), dimension(:, :, :), target :: buffer
+        integer, intent(in) :: count, root, datatype, comm
+        integer, optional, intent(out) :: ierror
+        call bcast_core(c_loc(buffer), count, datatype, root, comm, ierror)
+    end subroutine MPI_Bcast_real4_3D
+
     subroutine MPI_Reduce_scalar_int(sendbuf, recvbuf, count, datatype, op, root, comm, ierror)
         integer, target, intent(in)  :: sendbuf
         integer, target, intent(out) :: recvbuf
@@ -1327,6 +1455,32 @@ module mpi
         integer, optional, intent(out) :: ierror
         call reduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, root, comm, ierror)
     end subroutine MPI_Reduce_scalar_int
+
+    subroutine MPI_Reduce_real8_scalar(sendbuf, recvbuf, count, datatype, op, root, comm, ierror)
+        real(8), target, intent(in)  :: sendbuf
+        real(8), target, intent(out) :: recvbuf
+        integer, intent(in)  :: count, datatype, op, root, comm
+        integer, optional, intent(out) :: ierror
+        call reduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, root, comm, ierror)
+    end subroutine MPI_Reduce_real8_scalar
+
+    subroutine MPI_Reduce_real4_scalar(sendbuf, recvbuf, count, datatype, op, root, comm, ierror)
+        real(4), target, intent(in)  :: sendbuf
+        real(4), target, intent(out) :: recvbuf
+        integer, intent(in)  :: count, datatype, op, root, comm
+        integer, optional, intent(out) :: ierror
+        call reduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, root, comm, ierror)
+    end subroutine MPI_Reduce_real4_scalar
+
+    subroutine MPI_Reduce_in_place_real8_scalar(sendbuf, recvbuf, count, datatype, op, root, &
+            comm, ierror)
+        use mpi_c_bindings, only: c_mpi_in_place
+        type(mpi_in_place_type), intent(in) :: sendbuf
+        real(8), target, intent(inout) :: recvbuf
+        integer, intent(in)  :: count, datatype, op, root, comm
+        integer, optional, intent(out) :: ierror
+        call reduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, root, comm, ierror)
+    end subroutine MPI_Reduce_in_place_real8_scalar
 
     subroutine MPI_Allreduce_scalar(sendbuf, recvbuf, count, datatype, op, comm, ierror)
         real(8), intent(in), target :: sendbuf
