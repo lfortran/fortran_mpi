@@ -306,8 +306,8 @@ end subroutine MPI_Bcast_proc
 ```
 
 `type(*), dimension(..)` needs a Fortran 2018 compiler: gfortran, flang,
-ifx, or an LFortran release newer than 0.68 (it needs lfortran/lfortran#16101,
-#17132 and #17133).
+ifx, or LFortran 0.69 or newer (it needs lfortran/lfortran#16101, #17132
+and #17133).
 
 ## The MPI-5 ABI
 
