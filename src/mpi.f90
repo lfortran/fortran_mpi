@@ -150,8 +150,10 @@ module mpi
     integer, parameter :: MPI_INTEGER = 537          ! 0x219
     integer, parameter :: MPI_REAL = 538             ! 0x21a
     integer, parameter :: MPI_DOUBLE_PRECISION = 540 ! 0x21c
+    integer, parameter :: MPI_DOUBLE_COMPLEX = 541   ! 0x21d
     integer, parameter :: MPI_CHARACTER = 542        ! 0x21e
     integer, parameter :: MPI_REAL4 = 722            ! 0x2d2
+    integer, parameter :: MPI_INTEGER8 = 729         ! 0x2d9
     integer, parameter :: MPI_REAL8 = 730            ! 0x2da
 
     ! Predefined handles are 1 .. 4095 in the ABI. Handles that MPI creates
@@ -159,12 +161,9 @@ module mpi
     ! offset, so that they never collide with a predefined handle.
     integer, parameter :: USER_HANDLE_OFFSET = 4096
 
-    ! MPI_IN_PLACE has a type of its own, so that the generic interfaces
-    ! select the in-place specific procedures at compile time.
-    type :: mpi_in_place_type
-        integer :: unused = 0
-    end type mpi_in_place_type
-    type(mpi_in_place_type) :: MPI_IN_PLACE
+    ! MPI_IN_PLACE is recognized by its address (in_place_or), so it must not
+    ! be copied. Its type does not matter, since buffers are type(*).
+    integer, target :: MPI_IN_PLACE
 
     ! MPI_STATUS_IGNORE and MPI_STATUSES_IGNORE are recognized by their
     ! address, so they must not be copied: is_status_ignore.
@@ -178,9 +177,7 @@ module mpi
     private :: rank_f2c, rank_c2f, tag_f2c, thread_level_f2c, thread_level_c2f
     private :: split_type_f2c, color_f2c, status_c2f, c_string_to_fortran, set_ierror
     private :: errhandler_f2c, error_class_c2f, is_status_ignore, is_statuses_ignore
-    private :: send_core, ssend_core, recv_core, isend_core, irecv_core, sendrecv_core
-    private :: bcast_core, reduce_core, allreduce_core, exscan_core, allgather_core
-    private :: gatherv_core, allgatherv_core, scatter_core
+    private :: in_place_or
     private :: c_int, c_char, c_ptr, c_loc, c_null_ptr, c_associated
 
     interface MPI_Init
@@ -236,82 +233,27 @@ module mpi
     end interface MPI_Comm_free
 
     interface MPI_Bcast
-        module procedure MPI_Bcast_int_0d
-        module procedure MPI_Bcast_int_1d
-        module procedure MPI_Bcast_int_2d
-        module procedure MPI_Bcast_int_3d
-        module procedure MPI_Bcast_real4_0d
-        module procedure MPI_Bcast_real4_1d
-        module procedure MPI_Bcast_real4_2d
-        module procedure MPI_Bcast_real4_3d
-        module procedure MPI_Bcast_real8_0d
-        module procedure MPI_Bcast_real8_1d
-        module procedure MPI_Bcast_real8_2d
-        module procedure MPI_Bcast_real8_3d
-        module procedure MPI_Bcast_logical_0d
-        module procedure MPI_Bcast_logical_1d
-        module procedure MPI_Bcast_logical_2d
-        module procedure MPI_Bcast_logical_3d
-        module procedure MPI_Bcast_character
+        module procedure MPI_Bcast_proc
     end interface MPI_Bcast
 
     interface MPI_Allgather
-        module procedure MPI_Allgather_int
-        module procedure MPI_Allgather_real
-        module procedure MPI_Allgather_real4
+        module procedure MPI_Allgather_proc
     end interface MPI_Allgather
 
     interface MPI_Isend
-        module procedure MPI_Isend_2d
-        module procedure MPI_Isend_3d
-        module procedure MPI_Isend_real4_2d
-        module procedure MPI_Isend_real4_3d
+        module procedure MPI_Isend_proc
     end interface
 
-    interface MPI_IRecv
-        module procedure MPI_IRecv_proc
-        module procedure MPI_Irecv_real4_2d
+    interface MPI_Irecv
+        module procedure MPI_Irecv_proc
     end interface
 
     interface MPI_Allreduce
-        module procedure MPI_Allreduce_int_0d
-        module procedure MPI_Allreduce_int_1d
-        module procedure MPI_Allreduce_int_2d
-        module procedure MPI_Allreduce_int_3d
-        module procedure MPI_Allreduce_real4_0d
-        module procedure MPI_Allreduce_real4_1d
-        module procedure MPI_Allreduce_real4_2d
-        module procedure MPI_Allreduce_real4_3d
-        module procedure MPI_Allreduce_real8_0d
-        module procedure MPI_Allreduce_real8_1d
-        module procedure MPI_Allreduce_real8_2d
-        module procedure MPI_Allreduce_real8_3d
-        module procedure MPI_Allreduce_logical_0d
-        module procedure MPI_Allreduce_logical_1d
-        module procedure MPI_Allreduce_logical_2d
-        module procedure MPI_Allreduce_logical_3d
-        module procedure MPI_Allreduce_in_place_int_0d
-        module procedure MPI_Allreduce_in_place_int_1d
-        module procedure MPI_Allreduce_in_place_int_2d
-        module procedure MPI_Allreduce_in_place_int_3d
-        module procedure MPI_Allreduce_in_place_real4_0d
-        module procedure MPI_Allreduce_in_place_real4_1d
-        module procedure MPI_Allreduce_in_place_real4_2d
-        module procedure MPI_Allreduce_in_place_real4_3d
-        module procedure MPI_Allreduce_in_place_real8_0d
-        module procedure MPI_Allreduce_in_place_real8_1d
-        module procedure MPI_Allreduce_in_place_real8_2d
-        module procedure MPI_Allreduce_in_place_real8_3d
-        module procedure MPI_Allreduce_in_place_logical_0d
-        module procedure MPI_Allreduce_in_place_logical_1d
-        module procedure MPI_Allreduce_in_place_logical_2d
-        module procedure MPI_Allreduce_in_place_logical_3d
+        module procedure MPI_Allreduce_proc
     end interface MPI_Allreduce
 
     interface MPI_Gatherv
-        module procedure MPI_Gatherv_int
-        module procedure MPI_Gatherv_real
-        module procedure MPI_Gatherv_character
+        module procedure MPI_Gatherv_proc
     end interface MPI_Gatherv
 
     interface MPI_Wtime
@@ -335,17 +277,11 @@ module mpi
     end interface
 
     interface MPI_Recv
-        module procedure MPI_Recv_StatusArray_proc
-        module procedure MPI_Recv_real4
-        module procedure MPI_Recv_real4_scalar
-        module procedure MPI_Recv_real8_scalar
+        module procedure MPI_Recv_proc
     end interface
 
     interface MPI_Send
-        module procedure MPI_Send_real8
-        module procedure MPI_Send_real4
-        module procedure MPI_Send_real8_scalar
-        module procedure MPI_Send_real4_scalar
+        module procedure MPI_Send_proc
     end interface
 
     interface MPI_Sendrecv
@@ -361,52 +297,15 @@ module mpi
     end interface
 
     interface MPI_Allgatherv
-        module procedure MPI_Allgatherv_int
-        module procedure MPI_Allgatherv_real
+        module procedure MPI_Allgatherv_proc
     end interface MPI_Allgatherv
 
     interface MPI_Scatter
-        module procedure MPI_Scatter_int_1d_0d
-        module procedure MPI_Scatter_int_1d_1d
-        module procedure MPI_Scatter_int_1d_2d
-        module procedure MPI_Scatter_int_1d_3d
-        module procedure MPI_Scatter_int_2d_0d
-        module procedure MPI_Scatter_int_2d_1d
-        module procedure MPI_Scatter_int_2d_2d
-        module procedure MPI_Scatter_int_2d_3d
-        module procedure MPI_Scatter_int_3d_0d
-        module procedure MPI_Scatter_int_3d_1d
-        module procedure MPI_Scatter_int_3d_2d
-        module procedure MPI_Scatter_int_3d_3d
-        module procedure MPI_Scatter_real4_1d_0d
-        module procedure MPI_Scatter_real4_1d_1d
-        module procedure MPI_Scatter_real4_1d_2d
-        module procedure MPI_Scatter_real4_1d_3d
-        module procedure MPI_Scatter_real4_2d_0d
-        module procedure MPI_Scatter_real4_2d_1d
-        module procedure MPI_Scatter_real4_2d_2d
-        module procedure MPI_Scatter_real4_2d_3d
-        module procedure MPI_Scatter_real4_3d_0d
-        module procedure MPI_Scatter_real4_3d_1d
-        module procedure MPI_Scatter_real4_3d_2d
-        module procedure MPI_Scatter_real4_3d_3d
-        module procedure MPI_Scatter_real8_1d_0d
-        module procedure MPI_Scatter_real8_1d_1d
-        module procedure MPI_Scatter_real8_1d_2d
-        module procedure MPI_Scatter_real8_1d_3d
-        module procedure MPI_Scatter_real8_2d_0d
-        module procedure MPI_Scatter_real8_2d_1d
-        module procedure MPI_Scatter_real8_2d_2d
-        module procedure MPI_Scatter_real8_2d_3d
-        module procedure MPI_Scatter_real8_3d_0d
-        module procedure MPI_Scatter_real8_3d_1d
-        module procedure MPI_Scatter_real8_3d_2d
-        module procedure MPI_Scatter_real8_3d_3d
+        module procedure MPI_Scatter_proc
     end interface MPI_Scatter
 
     interface MPI_Ssend
         module procedure MPI_Ssend_proc
-        module procedure MPI_Ssend_real4
     end interface
 
     interface MPI_Cart_create
@@ -430,53 +329,11 @@ module mpi
     end interface
 
     interface MPI_Reduce
-        module procedure MPI_Reduce_int_0d
-        module procedure MPI_Reduce_int_1d
-        module procedure MPI_Reduce_int_2d
-        module procedure MPI_Reduce_int_3d
-        module procedure MPI_Reduce_real4_0d
-        module procedure MPI_Reduce_real4_1d
-        module procedure MPI_Reduce_real4_2d
-        module procedure MPI_Reduce_real4_3d
-        module procedure MPI_Reduce_real8_0d
-        module procedure MPI_Reduce_real8_1d
-        module procedure MPI_Reduce_real8_2d
-        module procedure MPI_Reduce_real8_3d
-        module procedure MPI_Reduce_logical_0d
-        module procedure MPI_Reduce_logical_1d
-        module procedure MPI_Reduce_logical_2d
-        module procedure MPI_Reduce_logical_3d
-        module procedure MPI_Reduce_in_place_int_0d
-        module procedure MPI_Reduce_in_place_int_1d
-        module procedure MPI_Reduce_in_place_int_2d
-        module procedure MPI_Reduce_in_place_int_3d
-        module procedure MPI_Reduce_in_place_real4_0d
-        module procedure MPI_Reduce_in_place_real4_1d
-        module procedure MPI_Reduce_in_place_real4_2d
-        module procedure MPI_Reduce_in_place_real4_3d
-        module procedure MPI_Reduce_in_place_real8_0d
-        module procedure MPI_Reduce_in_place_real8_1d
-        module procedure MPI_Reduce_in_place_real8_2d
-        module procedure MPI_Reduce_in_place_real8_3d
-        module procedure MPI_Reduce_in_place_logical_0d
-        module procedure MPI_Reduce_in_place_logical_1d
-        module procedure MPI_Reduce_in_place_logical_2d
-        module procedure MPI_Reduce_in_place_logical_3d
+        module procedure MPI_Reduce_proc
     end interface MPI_Reduce
 
     interface MPI_Exscan
-        module procedure MPI_Exscan_int_0d
-        module procedure MPI_Exscan_int_1d
-        module procedure MPI_Exscan_int_2d
-        module procedure MPI_Exscan_int_3d
-        module procedure MPI_Exscan_real4_0d
-        module procedure MPI_Exscan_real4_1d
-        module procedure MPI_Exscan_real4_2d
-        module procedure MPI_Exscan_real4_3d
-        module procedure MPI_Exscan_real8_0d
-        module procedure MPI_Exscan_real8_1d
-        module procedure MPI_Exscan_real8_2d
-        module procedure MPI_Exscan_real8_3d
+        module procedure MPI_Exscan_proc
     end interface MPI_Exscan
 
     interface MPI_Comm_set_errhandler
@@ -841,11 +698,12 @@ module mpi
         end if
     end subroutine set_ierror
 
-    ! The MPI routines. Each routine that takes a buffer has one core
-    ! (*_core), which takes the buffers as C pointers and does all the
-    ! translation of handles, ranks, tags and statuses. The specific
-    ! procedures for each type and rank of the buffers only pass c_loc of
-    ! their buffers to it.
+    ! The MPI routines. Each has exactly one specific procedure. A buffer is
+    ! type(*), dimension(..), so it accepts every type, kind and rank, and
+    ! the C function gets c_loc of it. Blocking routines declare it
+    ! contiguous: a non-contiguous section is passed as a contiguous copy.
+    ! Nonblocking routines cannot use a copy, so they require a contiguous
+    ! buffer.
 
     subroutine MPI_Init_proc(ierr)
         use mpi_c_bindings, only: c_mpi_init
@@ -1183,75 +1041,82 @@ module mpi
 
     ! Point-to-point
 
-    subroutine send_core(buf, count, datatype, dest, tag, comm, ierror)
+    subroutine MPI_Send_proc(buf, count, datatype, dest, tag, comm, ierror)
         use mpi_c_bindings, only: c_mpi_send
-        type(c_ptr), intent(in) :: buf
+        type(*), dimension(..), contiguous, target, intent(in) :: buf
         integer, intent(in) :: count, datatype, dest, tag, comm
         integer, optional, intent(out) :: ierror
-        call set_ierror(c_mpi_send(buf, count, datatype_f2c(datatype), rank_f2c(dest), &
+        call set_ierror(c_mpi_send(c_loc(buf), count, datatype_f2c(datatype), rank_f2c(dest), &
             tag_f2c(tag), comm_f2c(comm)), "MPI_Send", ierror)
-    end subroutine send_core
+    end subroutine MPI_Send_proc
 
-    subroutine ssend_core(buf, count, datatype, dest, tag, comm, ierror)
+    subroutine MPI_Ssend_proc(buf, count, datatype, dest, tag, comm, ierror)
         use mpi_c_bindings, only: c_mpi_ssend
-        type(c_ptr), intent(in) :: buf
+        type(*), dimension(..), contiguous, target, intent(in) :: buf
         integer, intent(in) :: count, datatype, dest, tag, comm
         integer, optional, intent(out) :: ierror
-        call set_ierror(c_mpi_ssend(buf, count, datatype_f2c(datatype), rank_f2c(dest), &
+        call set_ierror(c_mpi_ssend(c_loc(buf), count, datatype_f2c(datatype), rank_f2c(dest), &
             tag_f2c(tag), comm_f2c(comm)), "MPI_Ssend", ierror)
-    end subroutine ssend_core
+    end subroutine MPI_Ssend_proc
 
-    subroutine recv_core(buf, count, datatype, source, tag, comm, status, ierror)
+    subroutine MPI_Recv_proc(buf, count, datatype, source, tag, comm, status, ierror)
         use mpi_c_bindings, only: c_mpi_recv, c_mpi_status_ignore
-        type(c_ptr), intent(in) :: buf
+        type(*), dimension(..), contiguous, target, intent(inout) :: buf
         integer, intent(in) :: count, datatype, source, tag, comm
         integer, target, intent(out) :: status(MPI_STATUS_SIZE)
         integer, optional, intent(out) :: ierror
         integer(c_int), target :: c_status(MPI_STATUS_SIZE)
         integer(c_int) :: local_ierr
         if (is_status_ignore(status)) then
-            local_ierr = c_mpi_recv(buf, count, datatype_f2c(datatype), rank_f2c(source), &
+            local_ierr = c_mpi_recv(c_loc(buf), count, datatype_f2c(datatype), rank_f2c(source), &
                 tag_f2c(tag), comm_f2c(comm), c_mpi_status_ignore)
         else
-            local_ierr = c_mpi_recv(buf, count, datatype_f2c(datatype), rank_f2c(source), &
+            local_ierr = c_mpi_recv(c_loc(buf), count, datatype_f2c(datatype), rank_f2c(source), &
                 tag_f2c(tag), comm_f2c(comm), c_loc(c_status))
             if (local_ierr == MPI_SUCCESS) call status_c2f(c_status, status)
         end if
         call set_ierror(local_ierr, "MPI_Recv", ierror)
-    end subroutine recv_core
+    end subroutine MPI_Recv_proc
 
-    subroutine isend_core(buf, count, datatype, dest, tag, comm, request, ierror)
+    subroutine MPI_Isend_proc(buf, count, datatype, dest, tag, comm, request, ierror)
         use mpi_c_bindings, only: c_mpi_isend
-        type(c_ptr), intent(in) :: buf
+        type(*), dimension(..), target, asynchronous, intent(in) :: buf
         integer, intent(in) :: count, datatype, dest, tag, comm
         integer, intent(out) :: request
         integer, optional, intent(out) :: ierror
         integer(kind=MPI_HANDLE_KIND) :: c_request
         integer(c_int) :: local_ierr
-        local_ierr = c_mpi_isend(buf, count, datatype_f2c(datatype), rank_f2c(dest), &
+        if (.not. is_contiguous(buf)) then
+            error stop "MPI_Isend: the buffer of a nonblocking call must be contiguous"
+        end if
+        local_ierr = c_mpi_isend(c_loc(buf), count, datatype_f2c(datatype), rank_f2c(dest), &
             tag_f2c(tag), comm_f2c(comm), c_request)
         request = request_c2f(c_request)
         call set_ierror(local_ierr, "MPI_Isend", ierror)
-    end subroutine isend_core
+    end subroutine MPI_Isend_proc
 
-    subroutine irecv_core(buf, count, datatype, source, tag, comm, request, ierror)
+    subroutine MPI_Irecv_proc(buf, count, datatype, source, tag, comm, request, ierror)
         use mpi_c_bindings, only: c_mpi_irecv
-        type(c_ptr), intent(in) :: buf
+        type(*), dimension(..), target, asynchronous, intent(inout) :: buf
         integer, intent(in) :: count, datatype, source, tag, comm
         integer, intent(out) :: request
         integer, optional, intent(out) :: ierror
         integer(kind=MPI_HANDLE_KIND) :: c_request
         integer(c_int) :: local_ierr
-        local_ierr = c_mpi_irecv(buf, count, datatype_f2c(datatype), rank_f2c(source), &
+        if (.not. is_contiguous(buf)) then
+            error stop "MPI_Irecv: the buffer of a nonblocking call must be contiguous"
+        end if
+        local_ierr = c_mpi_irecv(c_loc(buf), count, datatype_f2c(datatype), rank_f2c(source), &
             tag_f2c(tag), comm_f2c(comm), c_request)
         request = request_c2f(c_request)
         call set_ierror(local_ierr, "MPI_Irecv", ierror)
-    end subroutine irecv_core
+    end subroutine MPI_Irecv_proc
 
-    subroutine sendrecv_core(sendbuf, sendcount, sendtype, dest, sendtag, &
+    subroutine MPI_Sendrecv_proc(sendbuf, sendcount, sendtype, dest, sendtag, &
             recvbuf, recvcount, recvtype, source, recvtag, comm, status, ierror)
         use mpi_c_bindings, only: c_mpi_sendrecv, c_mpi_status_ignore
-        type(c_ptr), intent(in) :: sendbuf, recvbuf
+        type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
+        type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
         integer, intent(in) :: sendcount, sendtype, dest, sendtag
         integer, intent(in) :: recvcount, recvtype, source, recvtag, comm
         integer, target, intent(out) :: status(MPI_STATUS_SIZE)
@@ -1264,1629 +1129,107 @@ module mpi
         else
             c_status_ptr = c_loc(c_status)
         end if
-        local_ierr = c_mpi_sendrecv(sendbuf, sendcount, datatype_f2c(sendtype), &
-            rank_f2c(dest), tag_f2c(sendtag), recvbuf, recvcount, datatype_f2c(recvtype), &
+        local_ierr = c_mpi_sendrecv(c_loc(sendbuf), sendcount, datatype_f2c(sendtype), &
+            rank_f2c(dest), tag_f2c(sendtag), c_loc(recvbuf), recvcount, datatype_f2c(recvtype), &
             rank_f2c(source), tag_f2c(recvtag), comm_f2c(comm), c_status_ptr)
         if (local_ierr == MPI_SUCCESS .and. .not. is_status_ignore(status)) then
             call status_c2f(c_status, status)
         end if
         call set_ierror(local_ierr, "MPI_Sendrecv", ierror)
-    end subroutine sendrecv_core
-
-    subroutine MPI_Ssend_proc(buf, count, datatype, dest, tag, comm, ierror)
-        real(8), dimension(*), intent(in), target :: buf
-        integer, intent(in) :: count, dest, tag
-        integer, intent(in) :: datatype
-        integer, intent(in) :: comm
-        integer, optional, intent(out) :: ierror
-        call ssend_core(c_loc(buf), count, datatype, dest, tag, comm, ierror)
-    end subroutine MPI_Ssend_proc
-
-    subroutine MPI_Ssend_real4(buf, count, datatype, dest, tag, comm, ierror)
-        real(4), dimension(*), intent(in), target :: buf
-        integer, intent(in) :: count, dest, tag, datatype, comm
-        integer, optional, intent(out) :: ierror
-        call ssend_core(c_loc(buf), count, datatype, dest, tag, comm, ierror)
-    end subroutine MPI_Ssend_real4
-
-    subroutine MPI_Send_real8(buf, count, datatype, dest, tag, comm, ierror)
-        real(8), dimension(*), intent(in), target :: buf
-        integer, intent(in) :: count, dest, tag, datatype, comm
-        integer, optional, intent(out) :: ierror
-        call send_core(c_loc(buf), count, datatype, dest, tag, comm, ierror)
-    end subroutine MPI_Send_real8
-
-    subroutine MPI_Send_real4(buf, count, datatype, dest, tag, comm, ierror)
-        real(4), dimension(*), intent(in), target :: buf
-        integer, intent(in) :: count, dest, tag, datatype, comm
-        integer, optional, intent(out) :: ierror
-        call send_core(c_loc(buf), count, datatype, dest, tag, comm, ierror)
-    end subroutine MPI_Send_real4
-
-    subroutine MPI_Send_real8_scalar(buf, count, datatype, dest, tag, comm, ierror)
-        real(8), intent(in), target :: buf
-        integer, intent(in) :: count, dest, tag, datatype, comm
-        integer, optional, intent(out) :: ierror
-        call send_core(c_loc(buf), count, datatype, dest, tag, comm, ierror)
-    end subroutine MPI_Send_real8_scalar
-
-    subroutine MPI_Send_real4_scalar(buf, count, datatype, dest, tag, comm, ierror)
-        real(4), intent(in), target :: buf
-        integer, intent(in) :: count, dest, tag, datatype, comm
-        integer, optional, intent(out) :: ierror
-        call send_core(c_loc(buf), count, datatype, dest, tag, comm, ierror)
-    end subroutine MPI_Send_real4_scalar
-
-    subroutine MPI_Recv_StatusArray_proc(buf, count, datatype, source, tag, comm, status, ierror)
-        real(8), dimension(*), intent(inout), target :: buf
-        integer, intent(in)  :: count, source, tag, datatype, comm
-        integer, target, intent(out) :: status(MPI_STATUS_SIZE)
-        integer, optional, intent(out) :: ierror
-        call recv_core(c_loc(buf), count, datatype, source, tag, comm, status, ierror)
-    end subroutine MPI_Recv_StatusArray_proc
-
-    subroutine MPI_Recv_real4(buf, count, datatype, source, tag, comm, status, ierror)
-        real(4), dimension(*), intent(inout), target :: buf
-        integer, intent(in)  :: count, source, tag, datatype, comm
-        integer, target, intent(out) :: status(MPI_STATUS_SIZE)
-        integer, optional, intent(out) :: ierror
-        call recv_core(c_loc(buf), count, datatype, source, tag, comm, status, ierror)
-    end subroutine MPI_Recv_real4
-
-    subroutine MPI_Recv_real8_scalar(buf, count, datatype, source, tag, comm, status, ierror)
-        real(8), intent(inout), target :: buf
-        integer, intent(in)  :: count, source, tag, datatype, comm
-        integer, target, intent(out) :: status(MPI_STATUS_SIZE)
-        integer, optional, intent(out) :: ierror
-        call recv_core(c_loc(buf), count, datatype, source, tag, comm, status, ierror)
-    end subroutine MPI_Recv_real8_scalar
-
-    subroutine MPI_Recv_real4_scalar(buf, count, datatype, source, tag, comm, status, ierror)
-        real(4), intent(inout), target :: buf
-        integer, intent(in)  :: count, source, tag, datatype, comm
-        integer, target, intent(out) :: status(MPI_STATUS_SIZE)
-        integer, optional, intent(out) :: ierror
-        call recv_core(c_loc(buf), count, datatype, source, tag, comm, status, ierror)
-    end subroutine MPI_Recv_real4_scalar
-
-    subroutine MPI_Isend_2d(buf, count, datatype, dest, tag, comm, request, ierror)
-        real(8), dimension(:, :), intent(in), target :: buf
-        integer, intent(in) :: count, dest, tag
-        integer, intent(in) :: datatype
-        integer, intent(in) :: comm
-        integer, intent(out) :: request
-        integer, optional, intent(out) :: ierror
-        call isend_core(c_loc(buf), count, datatype, dest, tag, comm, request, ierror)
-    end subroutine MPI_Isend_2d
-
-    subroutine MPI_Isend_3d(buf, count, datatype, dest, tag, comm, request, ierror)
-        real(8), dimension(:, :, :), intent(in), target :: buf
-        integer, intent(in) :: count, dest, tag
-        integer, intent(in) :: datatype
-        integer, intent(in) :: comm
-        integer, intent(out) :: request
-        integer, optional, intent(out) :: ierror
-        call isend_core(c_loc(buf), count, datatype, dest, tag, comm, request, ierror)
-    end subroutine MPI_Isend_3d
-
-    subroutine MPI_Isend_real4_2d(buf, count, datatype, dest, tag, comm, request, ierror)
-        real(4), dimension(:, :), intent(in), target :: buf
-        integer, intent(in) :: count, dest, tag, datatype, comm
-        integer, intent(out) :: request
-        integer, optional, intent(out) :: ierror
-        call isend_core(c_loc(buf), count, datatype, dest, tag, comm, request, ierror)
-    end subroutine MPI_Isend_real4_2d
-
-    subroutine MPI_Isend_real4_3d(buf, count, datatype, dest, tag, comm, request, ierror)
-        real(4), dimension(:, :, :), intent(in), target :: buf
-        integer, intent(in) :: count, dest, tag, datatype, comm
-        integer, intent(out) :: request
-        integer, optional, intent(out) :: ierror
-        call isend_core(c_loc(buf), count, datatype, dest, tag, comm, request, ierror)
-    end subroutine MPI_Isend_real4_3d
-
-    subroutine MPI_Irecv_proc(buf, count, datatype, source, tag, comm, request, ierror)
-        real(8), dimension(:,:), target :: buf
-        integer, intent(in) :: count, source, tag
-        integer, intent(in) :: datatype
-        integer, intent(in) :: comm
-        integer, intent(out) :: request
-        integer, optional, intent(out) :: ierror
-        call irecv_core(c_loc(buf), count, datatype, source, tag, comm, request, ierror)
-    end subroutine MPI_Irecv_proc
-
-    subroutine MPI_Irecv_real4_2d(buf, count, datatype, source, tag, comm, request, ierror)
-        real(4), dimension(:,:), target :: buf
-        integer, intent(in) :: count, source, tag, datatype, comm
-        integer, intent(out) :: request
-        integer, optional, intent(out) :: ierror
-        call irecv_core(c_loc(buf), count, datatype, source, tag, comm, request, ierror)
-    end subroutine MPI_Irecv_real4_2d
-
-    subroutine MPI_Sendrecv_proc(sendbuf, sendcount, sendtype, dest, sendtag, &
-            recvbuf, recvcount, recvtype, source, recvtag, comm, status, ierror)
-        real(8), dimension(:,:), target, intent(in) :: sendbuf
-        integer, intent(in) :: sendcount, dest, sendtag
-        real(8), dimension(:,:), target, intent(out) :: recvbuf
-        integer, intent(in) :: recvcount, source, recvtag
-        integer, intent(in) :: comm
-        integer, intent(in) :: sendtype, recvtype
-        integer, target, intent(out) :: status(MPI_STATUS_SIZE)
-        integer, optional, intent(out) :: ierror
-        call sendrecv_core(c_loc(sendbuf), sendcount, sendtype, dest, sendtag, &
-            c_loc(recvbuf), recvcount, recvtype, source, recvtag, comm, status, ierror)
     end subroutine MPI_Sendrecv_proc
 
     ! Collectives
 
-    subroutine bcast_core(buffer, count, datatype, root, comm, ierror)
+    subroutine MPI_Bcast_proc(buffer, count, datatype, root, comm, ierror)
         use mpi_c_bindings, only: c_mpi_bcast
-        type(c_ptr), intent(in) :: buffer
+        type(*), dimension(..), contiguous, target, intent(inout) :: buffer
         integer, intent(in) :: count, datatype, root, comm
         integer, optional, intent(out) :: ierror
-        call set_ierror(c_mpi_bcast(buffer, count, datatype_f2c(datatype), rank_f2c(root), &
+        call set_ierror(c_mpi_bcast(c_loc(buffer), count, datatype_f2c(datatype), rank_f2c(root), &
             comm_f2c(comm)), "MPI_Bcast", ierror)
-    end subroutine bcast_core
+    end subroutine MPI_Bcast_proc
 
-    subroutine reduce_core(sendbuf, recvbuf, count, datatype, op, root, comm, ierror)
+    subroutine MPI_Reduce_proc(sendbuf, recvbuf, count, datatype, op, root, comm, ierror)
         use mpi_c_bindings, only: c_mpi_reduce
-        type(c_ptr), intent(in) :: sendbuf, recvbuf
+        type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
+        type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
         integer, intent(in) :: count, datatype, op, root, comm
         integer, optional, intent(out) :: ierror
-        call set_ierror(c_mpi_reduce(sendbuf, recvbuf, count, datatype_f2c(datatype), &
-            op_f2c(op), rank_f2c(root), comm_f2c(comm)), "MPI_Reduce", ierror)
-    end subroutine reduce_core
+        call set_ierror(c_mpi_reduce(in_place_or(c_loc(sendbuf)), c_loc(recvbuf), count, &
+            datatype_f2c(datatype), op_f2c(op), rank_f2c(root), comm_f2c(comm)), "MPI_Reduce", &
+            ierror)
+    end subroutine MPI_Reduce_proc
 
-    subroutine allreduce_core(sendbuf, recvbuf, count, datatype, op, comm, ierror)
+    subroutine MPI_Allreduce_proc(sendbuf, recvbuf, count, datatype, op, comm, ierror)
         use mpi_c_bindings, only: c_mpi_allreduce
-        type(c_ptr), intent(in) :: sendbuf, recvbuf
+        type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
+        type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
         integer, intent(in) :: count, datatype, op, comm
         integer, optional, intent(out) :: ierror
-        call set_ierror(c_mpi_allreduce(sendbuf, recvbuf, count, datatype_f2c(datatype), &
-            op_f2c(op), comm_f2c(comm)), "MPI_Allreduce", ierror)
-    end subroutine allreduce_core
+        call set_ierror(c_mpi_allreduce(in_place_or(c_loc(sendbuf)), c_loc(recvbuf), count, &
+            datatype_f2c(datatype), op_f2c(op), comm_f2c(comm)), "MPI_Allreduce", ierror)
+    end subroutine MPI_Allreduce_proc
 
-    subroutine exscan_core(sendbuf, recvbuf, count, datatype, op, comm, ierror)
+    subroutine MPI_Exscan_proc(sendbuf, recvbuf, count, datatype, op, comm, ierror)
         use mpi_c_bindings, only: c_mpi_exscan
-        type(c_ptr), intent(in) :: sendbuf, recvbuf
+        type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
+        type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
         integer, intent(in) :: count, datatype, op, comm
         integer, optional, intent(out) :: ierror
-        call set_ierror(c_mpi_exscan(sendbuf, recvbuf, count, datatype_f2c(datatype), &
-            op_f2c(op), comm_f2c(comm)), "MPI_Exscan", ierror)
-    end subroutine exscan_core
+        call set_ierror(c_mpi_exscan(in_place_or(c_loc(sendbuf)), c_loc(recvbuf), count, &
+            datatype_f2c(datatype), op_f2c(op), comm_f2c(comm)), "MPI_Exscan", ierror)
+    end subroutine MPI_Exscan_proc
 
-    subroutine allgather_core(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, &
+    subroutine MPI_Allgather_proc(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, &
             comm, ierror)
         use mpi_c_bindings, only: c_mpi_allgather
-        type(c_ptr), intent(in) :: sendbuf, recvbuf
+        type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
+        type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
         integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, comm
         integer, optional, intent(out) :: ierror
-        call set_ierror(c_mpi_allgather(sendbuf, sendcount, datatype_f2c(sendtype), &
-            recvbuf, recvcount, datatype_f2c(recvtype), comm_f2c(comm)), &
-            "MPI_Allgather", ierror)
-    end subroutine allgather_core
+        call set_ierror(c_mpi_allgather(in_place_or(c_loc(sendbuf)), sendcount, &
+            datatype_f2c(sendtype), c_loc(recvbuf), recvcount, datatype_f2c(recvtype), &
+            comm_f2c(comm)), "MPI_Allgather", ierror)
+    end subroutine MPI_Allgather_proc
 
-    subroutine gatherv_core(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, &
+    subroutine MPI_Gatherv_proc(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, &
             recvtype, root, comm, ierror)
         use mpi_c_bindings, only: c_mpi_gatherv
-        type(c_ptr), intent(in) :: sendbuf, recvbuf
+        type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
+        type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
         integer, intent(in) :: sendcount, sendtype, recvtype, root, comm
         integer, intent(in) :: recvcounts(:), displs(:)
         integer, optional, intent(out) :: ierror
-        call set_ierror(c_mpi_gatherv(sendbuf, sendcount, datatype_f2c(sendtype), &
-            recvbuf, recvcounts, displs, datatype_f2c(recvtype), rank_f2c(root), &
-            comm_f2c(comm)), "MPI_Gatherv", ierror)
-    end subroutine gatherv_core
+        call set_ierror(c_mpi_gatherv(in_place_or(c_loc(sendbuf)), sendcount, &
+            datatype_f2c(sendtype), c_loc(recvbuf), recvcounts, displs, datatype_f2c(recvtype), &
+            rank_f2c(root), comm_f2c(comm)), "MPI_Gatherv", ierror)
+    end subroutine MPI_Gatherv_proc
 
-    subroutine allgatherv_core(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, &
+    subroutine MPI_Allgatherv_proc(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, &
             recvtype, comm, ierror)
         use mpi_c_bindings, only: c_mpi_allgatherv
-        type(c_ptr), intent(in) :: sendbuf, recvbuf
+        type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
+        type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
         integer, intent(in) :: sendcount, sendtype, recvtype, comm
         integer, intent(in) :: recvcounts(:), displs(:)
         integer, optional, intent(out) :: ierror
-        call set_ierror(c_mpi_allgatherv(sendbuf, sendcount, datatype_f2c(sendtype), &
-            recvbuf, recvcounts, displs, datatype_f2c(recvtype), comm_f2c(comm)), &
-            "MPI_Allgatherv", ierror)
-    end subroutine allgatherv_core
+        call set_ierror(c_mpi_allgatherv(in_place_or(c_loc(sendbuf)), sendcount, &
+            datatype_f2c(sendtype), c_loc(recvbuf), recvcounts, displs, datatype_f2c(recvtype), &
+            comm_f2c(comm)), "MPI_Allgatherv", ierror)
+    end subroutine MPI_Allgatherv_proc
 
-    subroutine scatter_core(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, &
+    subroutine MPI_Scatter_proc(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, &
             root, comm, ierror)
         use mpi_c_bindings, only: c_mpi_scatter
-        type(c_ptr), intent(in) :: sendbuf, recvbuf
+        type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
+        type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
         integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
         integer, optional, intent(out) :: ierror
-        call set_ierror(c_mpi_scatter(sendbuf, sendcount, datatype_f2c(sendtype), &
-            recvbuf, recvcount, datatype_f2c(recvtype), rank_f2c(root), comm_f2c(comm)), &
+        call set_ierror(c_mpi_scatter(c_loc(sendbuf), sendcount, datatype_f2c(sendtype), &
+            in_place_or(c_loc(recvbuf)), recvcount, datatype_f2c(recvtype), rank_f2c(root), &
+                comm_f2c(comm)), &
             "MPI_Scatter", ierror)
-    end subroutine scatter_core
-
-    ! Specific procedures of MPI_Bcast, MPI_Reduce, MPI_Allreduce, MPI_Exscan
-    ! and MPI_Scatter for each type, kind and rank. Array dummies are
-    ! assumed-size with the rank of the actual argument: the generic picks
-    ! the specific by rank, and a non-contiguous section is passed as a
-    ! contiguous copy.
-
-    subroutine MPI_Bcast_int_0d(buffer, count, datatype, root, comm, ierror)
-        integer, target, intent(inout) :: buffer
-        integer, intent(in) :: count, datatype, root, comm
-        integer, optional, intent(out) :: ierror
-        call bcast_core(c_loc(buffer), count, datatype, root, comm, ierror)
-    end subroutine MPI_Bcast_int_0d
-
-    subroutine MPI_Bcast_int_1d(buffer, count, datatype, root, comm, ierror)
-        integer, dimension(*), target, intent(inout) :: buffer
-        integer, intent(in) :: count, datatype, root, comm
-        integer, optional, intent(out) :: ierror
-        call bcast_core(c_loc(buffer), count, datatype, root, comm, ierror)
-    end subroutine MPI_Bcast_int_1d
-
-    subroutine MPI_Bcast_int_2d(buffer, count, datatype, root, comm, ierror)
-        integer, dimension(1, *), target, intent(inout) :: buffer
-        integer, intent(in) :: count, datatype, root, comm
-        integer, optional, intent(out) :: ierror
-        call bcast_core(c_loc(buffer), count, datatype, root, comm, ierror)
-    end subroutine MPI_Bcast_int_2d
-
-    subroutine MPI_Bcast_int_3d(buffer, count, datatype, root, comm, ierror)
-        integer, dimension(1, 1, *), target, intent(inout) :: buffer
-        integer, intent(in) :: count, datatype, root, comm
-        integer, optional, intent(out) :: ierror
-        call bcast_core(c_loc(buffer), count, datatype, root, comm, ierror)
-    end subroutine MPI_Bcast_int_3d
-
-    subroutine MPI_Bcast_real4_0d(buffer, count, datatype, root, comm, ierror)
-        real(4), target, intent(inout) :: buffer
-        integer, intent(in) :: count, datatype, root, comm
-        integer, optional, intent(out) :: ierror
-        call bcast_core(c_loc(buffer), count, datatype, root, comm, ierror)
-    end subroutine MPI_Bcast_real4_0d
-
-    subroutine MPI_Bcast_real4_1d(buffer, count, datatype, root, comm, ierror)
-        real(4), dimension(*), target, intent(inout) :: buffer
-        integer, intent(in) :: count, datatype, root, comm
-        integer, optional, intent(out) :: ierror
-        call bcast_core(c_loc(buffer), count, datatype, root, comm, ierror)
-    end subroutine MPI_Bcast_real4_1d
-
-    subroutine MPI_Bcast_real4_2d(buffer, count, datatype, root, comm, ierror)
-        real(4), dimension(1, *), target, intent(inout) :: buffer
-        integer, intent(in) :: count, datatype, root, comm
-        integer, optional, intent(out) :: ierror
-        call bcast_core(c_loc(buffer), count, datatype, root, comm, ierror)
-    end subroutine MPI_Bcast_real4_2d
-
-    subroutine MPI_Bcast_real4_3d(buffer, count, datatype, root, comm, ierror)
-        real(4), dimension(1, 1, *), target, intent(inout) :: buffer
-        integer, intent(in) :: count, datatype, root, comm
-        integer, optional, intent(out) :: ierror
-        call bcast_core(c_loc(buffer), count, datatype, root, comm, ierror)
-    end subroutine MPI_Bcast_real4_3d
-
-    subroutine MPI_Bcast_real8_0d(buffer, count, datatype, root, comm, ierror)
-        real(8), target, intent(inout) :: buffer
-        integer, intent(in) :: count, datatype, root, comm
-        integer, optional, intent(out) :: ierror
-        call bcast_core(c_loc(buffer), count, datatype, root, comm, ierror)
-    end subroutine MPI_Bcast_real8_0d
-
-    subroutine MPI_Bcast_real8_1d(buffer, count, datatype, root, comm, ierror)
-        real(8), dimension(*), target, intent(inout) :: buffer
-        integer, intent(in) :: count, datatype, root, comm
-        integer, optional, intent(out) :: ierror
-        call bcast_core(c_loc(buffer), count, datatype, root, comm, ierror)
-    end subroutine MPI_Bcast_real8_1d
-
-    subroutine MPI_Bcast_real8_2d(buffer, count, datatype, root, comm, ierror)
-        real(8), dimension(1, *), target, intent(inout) :: buffer
-        integer, intent(in) :: count, datatype, root, comm
-        integer, optional, intent(out) :: ierror
-        call bcast_core(c_loc(buffer), count, datatype, root, comm, ierror)
-    end subroutine MPI_Bcast_real8_2d
-
-    subroutine MPI_Bcast_real8_3d(buffer, count, datatype, root, comm, ierror)
-        real(8), dimension(1, 1, *), target, intent(inout) :: buffer
-        integer, intent(in) :: count, datatype, root, comm
-        integer, optional, intent(out) :: ierror
-        call bcast_core(c_loc(buffer), count, datatype, root, comm, ierror)
-    end subroutine MPI_Bcast_real8_3d
-
-    subroutine MPI_Bcast_logical_0d(buffer, count, datatype, root, comm, ierror)
-        logical, target, intent(inout) :: buffer
-        integer, intent(in) :: count, datatype, root, comm
-        integer, optional, intent(out) :: ierror
-        call bcast_core(c_loc(buffer), count, datatype, root, comm, ierror)
-    end subroutine MPI_Bcast_logical_0d
-
-    subroutine MPI_Bcast_logical_1d(buffer, count, datatype, root, comm, ierror)
-        logical, dimension(*), target, intent(inout) :: buffer
-        integer, intent(in) :: count, datatype, root, comm
-        integer, optional, intent(out) :: ierror
-        call bcast_core(c_loc(buffer), count, datatype, root, comm, ierror)
-    end subroutine MPI_Bcast_logical_1d
-
-    subroutine MPI_Bcast_logical_2d(buffer, count, datatype, root, comm, ierror)
-        logical, dimension(1, *), target, intent(inout) :: buffer
-        integer, intent(in) :: count, datatype, root, comm
-        integer, optional, intent(out) :: ierror
-        call bcast_core(c_loc(buffer), count, datatype, root, comm, ierror)
-    end subroutine MPI_Bcast_logical_2d
-
-    subroutine MPI_Bcast_logical_3d(buffer, count, datatype, root, comm, ierror)
-        logical, dimension(1, 1, *), target, intent(inout) :: buffer
-        integer, intent(in) :: count, datatype, root, comm
-        integer, optional, intent(out) :: ierror
-        call bcast_core(c_loc(buffer), count, datatype, root, comm, ierror)
-    end subroutine MPI_Bcast_logical_3d
-
-    subroutine MPI_Bcast_character(buffer, count, datatype, root, comm, ierror)
-        character(len=*), target, intent(inout) :: buffer
-        integer, intent(in) :: count, datatype, root, comm
-        integer, optional, intent(out) :: ierror
-        call bcast_core(c_loc(buffer), count, datatype, root, comm, ierror)
-    end subroutine MPI_Bcast_character
-
-    subroutine MPI_Reduce_int_0d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        integer, target, intent(in) :: sendbuf
-        integer, target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_int_0d
-
-    subroutine MPI_Reduce_int_1d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        integer, dimension(*), target, intent(in) :: sendbuf
-        integer, dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_int_1d
-
-    subroutine MPI_Reduce_int_2d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        integer, dimension(1, *), target, intent(in) :: sendbuf
-        integer, dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_int_2d
-
-    subroutine MPI_Reduce_int_3d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        integer, dimension(1, 1, *), target, intent(in) :: sendbuf
-        integer, dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_int_3d
-
-    subroutine MPI_Reduce_real4_0d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        real(4), target, intent(in) :: sendbuf
-        real(4), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_real4_0d
-
-    subroutine MPI_Reduce_real4_1d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        real(4), dimension(*), target, intent(in) :: sendbuf
-        real(4), dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_real4_1d
-
-    subroutine MPI_Reduce_real4_2d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        real(4), dimension(1, *), target, intent(in) :: sendbuf
-        real(4), dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_real4_2d
-
-    subroutine MPI_Reduce_real4_3d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        real(4), dimension(1, 1, *), target, intent(in) :: sendbuf
-        real(4), dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_real4_3d
-
-    subroutine MPI_Reduce_real8_0d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        real(8), target, intent(in) :: sendbuf
-        real(8), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_real8_0d
-
-    subroutine MPI_Reduce_real8_1d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        real(8), dimension(*), target, intent(in) :: sendbuf
-        real(8), dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_real8_1d
-
-    subroutine MPI_Reduce_real8_2d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        real(8), dimension(1, *), target, intent(in) :: sendbuf
-        real(8), dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_real8_2d
-
-    subroutine MPI_Reduce_real8_3d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        real(8), dimension(1, 1, *), target, intent(in) :: sendbuf
-        real(8), dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_real8_3d
-
-    subroutine MPI_Reduce_logical_0d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        logical, target, intent(in) :: sendbuf
-        logical, target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_logical_0d
-
-    subroutine MPI_Reduce_logical_1d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        logical, dimension(*), target, intent(in) :: sendbuf
-        logical, dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_logical_1d
-
-    subroutine MPI_Reduce_logical_2d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        logical, dimension(1, *), target, intent(in) :: sendbuf
-        logical, dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_logical_2d
-
-    subroutine MPI_Reduce_logical_3d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        logical, dimension(1, 1, *), target, intent(in) :: sendbuf
-        logical, dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_logical_3d
-
-    subroutine MPI_Reduce_in_place_int_0d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        integer, target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_in_place_int_0d
-
-    subroutine MPI_Reduce_in_place_int_1d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        integer, dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_in_place_int_1d
-
-    subroutine MPI_Reduce_in_place_int_2d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        integer, dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_in_place_int_2d
-
-    subroutine MPI_Reduce_in_place_int_3d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        integer, dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_in_place_int_3d
-
-    subroutine MPI_Reduce_in_place_real4_0d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        real(4), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_in_place_real4_0d
-
-    subroutine MPI_Reduce_in_place_real4_1d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        real(4), dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_in_place_real4_1d
-
-    subroutine MPI_Reduce_in_place_real4_2d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        real(4), dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_in_place_real4_2d
-
-    subroutine MPI_Reduce_in_place_real4_3d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        real(4), dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_in_place_real4_3d
-
-    subroutine MPI_Reduce_in_place_real8_0d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        real(8), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_in_place_real8_0d
-
-    subroutine MPI_Reduce_in_place_real8_1d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        real(8), dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_in_place_real8_1d
-
-    subroutine MPI_Reduce_in_place_real8_2d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        real(8), dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_in_place_real8_2d
-
-    subroutine MPI_Reduce_in_place_real8_3d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        real(8), dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_in_place_real8_3d
-
-    subroutine MPI_Reduce_in_place_logical_0d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        logical, target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_in_place_logical_0d
-
-    subroutine MPI_Reduce_in_place_logical_1d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        logical, dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_in_place_logical_1d
-
-    subroutine MPI_Reduce_in_place_logical_2d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        logical, dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_in_place_logical_2d
-
-    subroutine MPI_Reduce_in_place_logical_3d(sendbuf, recvbuf, count, datatype, op, root, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        logical, dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, root, comm
-        integer, optional, intent(out) :: ierror
-        call reduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, root, comm, &
-            ierror)
-    end subroutine MPI_Reduce_in_place_logical_3d
-
-    subroutine MPI_Allreduce_int_0d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        integer, target, intent(in) :: sendbuf
-        integer, target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_int_0d
-
-    subroutine MPI_Allreduce_int_1d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        integer, dimension(*), target, intent(in) :: sendbuf
-        integer, dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_int_1d
-
-    subroutine MPI_Allreduce_int_2d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        integer, dimension(1, *), target, intent(in) :: sendbuf
-        integer, dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_int_2d
-
-    subroutine MPI_Allreduce_int_3d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        integer, dimension(1, 1, *), target, intent(in) :: sendbuf
-        integer, dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_int_3d
-
-    subroutine MPI_Allreduce_real4_0d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        real(4), target, intent(in) :: sendbuf
-        real(4), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_real4_0d
-
-    subroutine MPI_Allreduce_real4_1d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        real(4), dimension(*), target, intent(in) :: sendbuf
-        real(4), dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_real4_1d
-
-    subroutine MPI_Allreduce_real4_2d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        real(4), dimension(1, *), target, intent(in) :: sendbuf
-        real(4), dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_real4_2d
-
-    subroutine MPI_Allreduce_real4_3d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        real(4), dimension(1, 1, *), target, intent(in) :: sendbuf
-        real(4), dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_real4_3d
-
-    subroutine MPI_Allreduce_real8_0d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        real(8), target, intent(in) :: sendbuf
-        real(8), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_real8_0d
-
-    subroutine MPI_Allreduce_real8_1d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        real(8), dimension(*), target, intent(in) :: sendbuf
-        real(8), dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_real8_1d
-
-    subroutine MPI_Allreduce_real8_2d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        real(8), dimension(1, *), target, intent(in) :: sendbuf
-        real(8), dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_real8_2d
-
-    subroutine MPI_Allreduce_real8_3d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        real(8), dimension(1, 1, *), target, intent(in) :: sendbuf
-        real(8), dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_real8_3d
-
-    subroutine MPI_Allreduce_logical_0d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        logical, target, intent(in) :: sendbuf
-        logical, target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_logical_0d
-
-    subroutine MPI_Allreduce_logical_1d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        logical, dimension(*), target, intent(in) :: sendbuf
-        logical, dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_logical_1d
-
-    subroutine MPI_Allreduce_logical_2d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        logical, dimension(1, *), target, intent(in) :: sendbuf
-        logical, dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_logical_2d
-
-    subroutine MPI_Allreduce_logical_3d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        logical, dimension(1, 1, *), target, intent(in) :: sendbuf
-        logical, dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_logical_3d
-
-    subroutine MPI_Allreduce_in_place_int_0d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        integer, target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_in_place_int_0d
-
-    subroutine MPI_Allreduce_in_place_int_1d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        integer, dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_in_place_int_1d
-
-    subroutine MPI_Allreduce_in_place_int_2d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        integer, dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_in_place_int_2d
-
-    subroutine MPI_Allreduce_in_place_int_3d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        integer, dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_in_place_int_3d
-
-    subroutine MPI_Allreduce_in_place_real4_0d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        real(4), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_in_place_real4_0d
-
-    subroutine MPI_Allreduce_in_place_real4_1d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        real(4), dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_in_place_real4_1d
-
-    subroutine MPI_Allreduce_in_place_real4_2d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        real(4), dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_in_place_real4_2d
-
-    subroutine MPI_Allreduce_in_place_real4_3d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        real(4), dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_in_place_real4_3d
-
-    subroutine MPI_Allreduce_in_place_real8_0d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        real(8), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_in_place_real8_0d
-
-    subroutine MPI_Allreduce_in_place_real8_1d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        real(8), dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_in_place_real8_1d
-
-    subroutine MPI_Allreduce_in_place_real8_2d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        real(8), dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_in_place_real8_2d
-
-    subroutine MPI_Allreduce_in_place_real8_3d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        real(8), dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_in_place_real8_3d
-
-    subroutine MPI_Allreduce_in_place_logical_0d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        logical, target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_in_place_logical_0d
-
-    subroutine MPI_Allreduce_in_place_logical_1d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        logical, dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_in_place_logical_1d
-
-    subroutine MPI_Allreduce_in_place_logical_2d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        logical, dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_in_place_logical_2d
-
-    subroutine MPI_Allreduce_in_place_logical_3d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        use mpi_c_bindings, only: c_mpi_in_place
-        type(mpi_in_place_type), intent(in) :: sendbuf
-        logical, dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call allreduce_core(c_mpi_in_place, c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Allreduce_in_place_logical_3d
-
-    subroutine MPI_Exscan_int_0d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        integer, target, intent(in) :: sendbuf
-        integer, target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call exscan_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Exscan_int_0d
-
-    subroutine MPI_Exscan_int_1d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        integer, dimension(*), target, intent(in) :: sendbuf
-        integer, dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call exscan_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Exscan_int_1d
-
-    subroutine MPI_Exscan_int_2d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        integer, dimension(1, *), target, intent(in) :: sendbuf
-        integer, dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call exscan_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Exscan_int_2d
-
-    subroutine MPI_Exscan_int_3d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        integer, dimension(1, 1, *), target, intent(in) :: sendbuf
-        integer, dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call exscan_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Exscan_int_3d
-
-    subroutine MPI_Exscan_real4_0d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        real(4), target, intent(in) :: sendbuf
-        real(4), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call exscan_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Exscan_real4_0d
-
-    subroutine MPI_Exscan_real4_1d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        real(4), dimension(*), target, intent(in) :: sendbuf
-        real(4), dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call exscan_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Exscan_real4_1d
-
-    subroutine MPI_Exscan_real4_2d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        real(4), dimension(1, *), target, intent(in) :: sendbuf
-        real(4), dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call exscan_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Exscan_real4_2d
-
-    subroutine MPI_Exscan_real4_3d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        real(4), dimension(1, 1, *), target, intent(in) :: sendbuf
-        real(4), dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call exscan_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Exscan_real4_3d
-
-    subroutine MPI_Exscan_real8_0d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        real(8), target, intent(in) :: sendbuf
-        real(8), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call exscan_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Exscan_real8_0d
-
-    subroutine MPI_Exscan_real8_1d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        real(8), dimension(*), target, intent(in) :: sendbuf
-        real(8), dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call exscan_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Exscan_real8_1d
-
-    subroutine MPI_Exscan_real8_2d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        real(8), dimension(1, *), target, intent(in) :: sendbuf
-        real(8), dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call exscan_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Exscan_real8_2d
-
-    subroutine MPI_Exscan_real8_3d(sendbuf, recvbuf, count, datatype, op, comm, &
-            ierror)
-        real(8), dimension(1, 1, *), target, intent(in) :: sendbuf
-        real(8), dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: count, datatype, op, comm
-        integer, optional, intent(out) :: ierror
-        call exscan_core(c_loc(sendbuf), c_loc(recvbuf), count, datatype, op, comm, &
-            ierror)
-    end subroutine MPI_Exscan_real8_3d
-
-    subroutine MPI_Scatter_int_1d_0d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        integer, dimension(*), target, intent(in) :: sendbuf
-        integer, target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_int_1d_0d
-
-    subroutine MPI_Scatter_int_1d_1d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        integer, dimension(*), target, intent(in) :: sendbuf
-        integer, dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_int_1d_1d
-
-    subroutine MPI_Scatter_int_1d_2d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        integer, dimension(*), target, intent(in) :: sendbuf
-        integer, dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_int_1d_2d
-
-    subroutine MPI_Scatter_int_1d_3d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        integer, dimension(*), target, intent(in) :: sendbuf
-        integer, dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_int_1d_3d
-
-    subroutine MPI_Scatter_int_2d_0d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        integer, dimension(1, *), target, intent(in) :: sendbuf
-        integer, target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_int_2d_0d
-
-    subroutine MPI_Scatter_int_2d_1d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        integer, dimension(1, *), target, intent(in) :: sendbuf
-        integer, dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_int_2d_1d
-
-    subroutine MPI_Scatter_int_2d_2d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        integer, dimension(1, *), target, intent(in) :: sendbuf
-        integer, dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_int_2d_2d
-
-    subroutine MPI_Scatter_int_2d_3d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        integer, dimension(1, *), target, intent(in) :: sendbuf
-        integer, dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_int_2d_3d
-
-    subroutine MPI_Scatter_int_3d_0d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        integer, dimension(1, 1, *), target, intent(in) :: sendbuf
-        integer, target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_int_3d_0d
-
-    subroutine MPI_Scatter_int_3d_1d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        integer, dimension(1, 1, *), target, intent(in) :: sendbuf
-        integer, dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_int_3d_1d
-
-    subroutine MPI_Scatter_int_3d_2d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        integer, dimension(1, 1, *), target, intent(in) :: sendbuf
-        integer, dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_int_3d_2d
-
-    subroutine MPI_Scatter_int_3d_3d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        integer, dimension(1, 1, *), target, intent(in) :: sendbuf
-        integer, dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_int_3d_3d
-
-    subroutine MPI_Scatter_real4_1d_0d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        real(4), dimension(*), target, intent(in) :: sendbuf
-        real(4), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_real4_1d_0d
-
-    subroutine MPI_Scatter_real4_1d_1d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        real(4), dimension(*), target, intent(in) :: sendbuf
-        real(4), dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_real4_1d_1d
-
-    subroutine MPI_Scatter_real4_1d_2d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        real(4), dimension(*), target, intent(in) :: sendbuf
-        real(4), dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_real4_1d_2d
-
-    subroutine MPI_Scatter_real4_1d_3d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        real(4), dimension(*), target, intent(in) :: sendbuf
-        real(4), dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_real4_1d_3d
-
-    subroutine MPI_Scatter_real4_2d_0d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        real(4), dimension(1, *), target, intent(in) :: sendbuf
-        real(4), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_real4_2d_0d
-
-    subroutine MPI_Scatter_real4_2d_1d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        real(4), dimension(1, *), target, intent(in) :: sendbuf
-        real(4), dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_real4_2d_1d
-
-    subroutine MPI_Scatter_real4_2d_2d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        real(4), dimension(1, *), target, intent(in) :: sendbuf
-        real(4), dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_real4_2d_2d
-
-    subroutine MPI_Scatter_real4_2d_3d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        real(4), dimension(1, *), target, intent(in) :: sendbuf
-        real(4), dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_real4_2d_3d
-
-    subroutine MPI_Scatter_real4_3d_0d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        real(4), dimension(1, 1, *), target, intent(in) :: sendbuf
-        real(4), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_real4_3d_0d
-
-    subroutine MPI_Scatter_real4_3d_1d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        real(4), dimension(1, 1, *), target, intent(in) :: sendbuf
-        real(4), dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_real4_3d_1d
-
-    subroutine MPI_Scatter_real4_3d_2d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        real(4), dimension(1, 1, *), target, intent(in) :: sendbuf
-        real(4), dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_real4_3d_2d
-
-    subroutine MPI_Scatter_real4_3d_3d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        real(4), dimension(1, 1, *), target, intent(in) :: sendbuf
-        real(4), dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_real4_3d_3d
-
-    subroutine MPI_Scatter_real8_1d_0d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        real(8), dimension(*), target, intent(in) :: sendbuf
-        real(8), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_real8_1d_0d
-
-    subroutine MPI_Scatter_real8_1d_1d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        real(8), dimension(*), target, intent(in) :: sendbuf
-        real(8), dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_real8_1d_1d
-
-    subroutine MPI_Scatter_real8_1d_2d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        real(8), dimension(*), target, intent(in) :: sendbuf
-        real(8), dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_real8_1d_2d
-
-    subroutine MPI_Scatter_real8_1d_3d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        real(8), dimension(*), target, intent(in) :: sendbuf
-        real(8), dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_real8_1d_3d
-
-    subroutine MPI_Scatter_real8_2d_0d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        real(8), dimension(1, *), target, intent(in) :: sendbuf
-        real(8), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_real8_2d_0d
-
-    subroutine MPI_Scatter_real8_2d_1d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        real(8), dimension(1, *), target, intent(in) :: sendbuf
-        real(8), dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_real8_2d_1d
-
-    subroutine MPI_Scatter_real8_2d_2d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        real(8), dimension(1, *), target, intent(in) :: sendbuf
-        real(8), dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_real8_2d_2d
-
-    subroutine MPI_Scatter_real8_2d_3d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        real(8), dimension(1, *), target, intent(in) :: sendbuf
-        real(8), dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_real8_2d_3d
-
-    subroutine MPI_Scatter_real8_3d_0d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        real(8), dimension(1, 1, *), target, intent(in) :: sendbuf
-        real(8), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_real8_3d_0d
-
-    subroutine MPI_Scatter_real8_3d_1d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        real(8), dimension(1, 1, *), target, intent(in) :: sendbuf
-        real(8), dimension(*), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_real8_3d_1d
-
-    subroutine MPI_Scatter_real8_3d_2d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        real(8), dimension(1, 1, *), target, intent(in) :: sendbuf
-        real(8), dimension(1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_real8_3d_2d
-
-    subroutine MPI_Scatter_real8_3d_3d(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
-            recvtype, root, comm, ierror)
-        real(8), dimension(1, 1, *), target, intent(in) :: sendbuf
-        real(8), dimension(1, 1, *), target, intent(inout) :: recvbuf
-        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
-        integer, optional, intent(out) :: ierror
-        call scatter_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, root, comm, ierror)
-    end subroutine MPI_Scatter_real8_3d_3d
-
-    subroutine MPI_Allgather_int(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm, ierror)
-        integer, dimension(:), intent(in), target :: sendbuf
-        integer, dimension(:, :), intent(out), target :: recvbuf
-        integer, intent(in) :: sendcount, recvcount
-        integer, intent(in) :: sendtype, recvtype
-        integer, intent(in) :: comm
-        integer, optional, intent(out) :: ierror
-        call allgather_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, comm, ierror)
-    end subroutine MPI_Allgather_int
-
-    subroutine MPI_Allgather_real(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm, ierror)
-        real(8), dimension(:), intent(in), target :: sendbuf
-        real(8), dimension(:, :), intent(out), target :: recvbuf
-        integer, intent(in) :: sendcount, recvcount
-        integer, intent(in) :: sendtype, recvtype
-        integer, intent(in) :: comm
-        integer, optional, intent(out) :: ierror
-        call allgather_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, comm, ierror)
-    end subroutine MPI_Allgather_real
-
-    subroutine MPI_Allgather_real4(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, &
-            comm, ierror)
-        real(4), dimension(:), intent(in), target :: sendbuf
-        real(4), dimension(:, :), intent(out), target :: recvbuf
-        integer, intent(in) :: sendcount, recvcount, sendtype, recvtype, comm
-        integer, optional, intent(out) :: ierror
-        call allgather_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcount, &
-            recvtype, comm, ierror)
-    end subroutine MPI_Allgather_real4
-
-    subroutine MPI_Gatherv_int(sendbuf, sendcount, sendtype, recvbuf, recvcounts, &
-            displs, recvtype, root, comm, ierror)
-        integer, dimension(:), intent(in), target :: sendbuf
-        integer, intent(in) :: sendcount
-        integer, intent(in) :: sendtype
-        integer, dimension(:), intent(out), target :: recvbuf
-        integer, dimension(:), intent(in) :: recvcounts
-        integer, dimension(:), intent(in) :: displs
-        integer, intent(in) :: recvtype
-        integer, intent(in) :: root
-        integer, intent(in) :: comm
-        integer, optional, intent(out) :: ierror
-        call gatherv_core(c_loc(sendbuf), sendcount, &
-            sendtype, c_loc(recvbuf), recvcounts, displs, recvtype, root, comm, ierror)
-    end subroutine MPI_Gatherv_int
-
-    subroutine MPI_Gatherv_real(sendbuf, sendcount, sendtype, recvbuf, recvcounts, &
-            displs, recvtype, root, comm, ierror)
-        real(8), dimension(:), intent(in), target :: sendbuf
-        integer, intent(in) :: sendcount
-        integer, intent(in) :: sendtype
-        real(8), dimension(:), intent(out), target :: recvbuf
-        integer, dimension(:), intent(in) :: recvcounts
-        integer, dimension(:), intent(in) :: displs
-        integer, intent(in) :: recvtype
-        integer, intent(in) :: root
-        integer, intent(in) :: comm
-        integer, optional, intent(out) :: ierror
-        call gatherv_core(c_loc(sendbuf), sendcount, &
-            sendtype, c_loc(recvbuf), recvcounts, displs, recvtype, root, comm, ierror)
-    end subroutine MPI_Gatherv_real
-
-    subroutine MPI_Gatherv_character(sendbuf, sendcount, sendtype, recvbuf, recvcounts, &
-            displs, recvtype, root, comm, ierror)
-        character(len=*), intent(in), target :: sendbuf(*)
-        integer, intent(in) :: sendcount
-        integer, intent(in) :: sendtype
-        character(len=*), intent(out), target :: recvbuf(*)
-        integer, dimension(:), intent(in) :: recvcounts
-        integer, dimension(:), intent(in) :: displs
-        integer, intent(in) :: recvtype
-        integer, intent(in) :: root
-        integer, intent(in) :: comm
-        integer, optional, intent(out) :: ierror
-        call gatherv_core(c_loc(sendbuf), sendcount, sendtype, c_loc(recvbuf), recvcounts, &
-            displs, recvtype, root, comm, ierror)
-    end subroutine MPI_Gatherv_character
-
-    subroutine MPI_Allgatherv_int(sendbuf, sendcount, sendtype, recvbuf, recvcounts, &
-            displs, recvtype, comm, ierror)
-        integer, dimension(:), intent(in), target :: sendbuf
-        integer, intent(in) :: sendcount
-        integer, intent(in) :: sendtype
-        integer, dimension(:), intent(out), target :: recvbuf
-        integer, dimension(:), intent(in) :: recvcounts
-        integer, dimension(:), intent(in) :: displs
-        integer, intent(in) :: recvtype
-        integer, intent(in) :: comm
-        integer, optional, intent(out) :: ierror
-        call allgatherv_core(c_loc(sendbuf), &
-            sendcount, sendtype, c_loc(recvbuf), recvcounts, displs, recvtype, comm, ierror)
-    end subroutine MPI_Allgatherv_int
-
-    subroutine MPI_Allgatherv_real(sendbuf, sendcount, sendtype, recvbuf, recvcounts, &
-            displs, recvtype, comm, ierror)
-        real(8), dimension(:), intent(in), target :: sendbuf
-        integer, intent(in) :: sendcount
-        integer, intent(in) :: sendtype
-        real(8), dimension(:), intent(out), target :: recvbuf
-        integer, dimension(:), intent(in) :: recvcounts
-        integer, dimension(:), intent(in) :: displs
-        integer, intent(in) :: recvtype
-        integer, intent(in) :: comm
-        integer, optional, intent(out) :: ierror
-        call allgatherv_core(c_loc(sendbuf), &
-            sendcount, sendtype, c_loc(recvbuf), recvcounts, displs, recvtype, comm, ierror)
-    end subroutine MPI_Allgatherv_real
+    end subroutine MPI_Scatter_proc
 
     ! Errors
 
@@ -2922,5 +1265,19 @@ module mpi
         call c_string_to_fortran(c_string, resultlen, string)
         call set_ierror(local_ierr, "MPI_Error_string", ierror)
     end subroutine MPI_Error_string_proc
+
+    ! The native MPI_IN_PLACE if p is the address of MPI_IN_PLACE, else p.
+    function in_place_or(p) result(r)
+        use mpi_c_bindings, only: c_mpi_in_place
+        type(c_ptr), intent(in) :: p
+        type(c_ptr) :: r
+        type(c_ptr) :: in_place
+        in_place = c_loc(MPI_IN_PLACE)
+        if (c_associated(p, in_place)) then
+            r = c_mpi_in_place
+        else
+            r = p
+        end if
+    end function in_place_or
 
 end module mpi

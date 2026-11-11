@@ -64,9 +64,10 @@ to any Fortran compiler, with any MPI implementation.
    `src/mpi_constants.c` uses `#if` only to ask whether the library defines a
    constant at all, for the error classes of MPI 4 and later.
 
-8. **Coverage grows with real use.** A routine, or a type/kind/rank variant
-   of one, is added when a real code needs it (POT3D, PARALLAX, user
-   reports), together with a test.
+8. **One specific procedure per routine.** A buffer is `type(*),
+   dimension(..)`, so every routine takes buffers of any type, kind and rank,
+   as with the vendors' `mpi` module. Routines are added when a real code
+   needs them (POT3D, PARALLAX, user reports), together with a test.
 
 9. **Verified by running programs.**
    - Every test runs with 1, 2 and 4 ranks.
@@ -206,15 +207,13 @@ These constants are not values; the standard requires recognizing them by
 their address. Values worked badly: a buffer whose first element was -1002
 was taken as `MPI_IN_PLACE`.
 
-**`MPI_IN_PLACE`** is a variable of its own type, `mpi_in_place_type`.
-- Its type differs from every buffer type. So `call MPI_Allreduce(MPI_IN_PLACE,
-  x, ...)` selects a specific procedure whose send buffer is
-  `type(mpi_in_place_type)`, at compile time.
-- That procedure passes the native `MPI_IN_PLACE` to the core.
-- No data can be taken for `MPI_IN_PLACE`.
-- Each in-place use needs its own specific procedure, one per type and rank
-  of the other buffer. A call that has none does not compile; it does not
-  fail at run time.
+**`MPI_IN_PLACE`** is an `integer, target` variable.
+- Buffers are `type(*)`, so it can be passed for any buffer.
+- `in_place_or` compares the address of a buffer argument with the address
+  of `MPI_IN_PLACE`, and passes the native `MPI_IN_PLACE` to C if they match.
+  Every buffer that the standard allows to be `MPI_IN_PLACE` goes through it.
+- No data can be taken for `MPI_IN_PLACE`: another variable never has its
+  address.
 
 **`MPI_STATUS_IGNORE` and `MPI_STATUSES_IGNORE`** are integer arrays of the
 shape of a status, `(MPI_STATUS_SIZE)`, and of an array of statuses,
@@ -222,8 +221,6 @@ shape of a status, `(MPI_STATUS_SIZE)`, and of an array of statuses,
 - `is_status_ignore` and `is_statuses_ignore` compare the address of the
   argument with the address of the constant. If they match, the core passes
   the native `MPI_STATUS_IGNORE` or `MPI_STATUSES_IGNORE` to C.
-- This needs no extra specific procedures, since a status argument always
-  has the same type.
 - Status arguments have the `target` attribute and explicit shape, so the
   compiler passes the actual array and does not copy it.
 - The addresses are first stored in `c_ptr` variables and then compared:
@@ -279,25 +276,38 @@ program with an explanation in two cases:
 1. Add a `bind(C)` interface to `src/mpi_c_bindings.f90` that mirrors the C
    prototype exactly: handles are `integer(kind=MPI_HANDLE_KIND), value`,
    buffers are `type(c_ptr), value`.
-2. In `src/mpi.f90`, add one core, e.g. `bcast_core`.
-   - It takes the buffers as `type(c_ptr)`.
+2. In `src/mpi.f90`, add one specific procedure, e.g. `MPI_Bcast_proc`,
+   under the generic interface `MPI_Bcast`.
+   - Each buffer is `type(*), dimension(..), target`, and the C function
+     gets `c_loc` of it. A buffer that may be `MPI_IN_PLACE` goes through
+     `in_place_or`.
+   - A blocking routine declares its buffers `contiguous`. The compiler then
+     passes a non-contiguous section as a contiguous copy, and copies it back
+     afterwards.
+   - A nonblocking routine cannot use a copy, because the transfer outlives
+     the call. Its buffers are `asynchronous` instead of `contiguous`, and it
+     stops with an error if `is_contiguous` is false. That is the rule of
+     the vendors' `mpi` module too.
    - It translates every handle, rank, tag and status, both into and out of
      the C call.
    - It hands the error code to `set_ierror`, which stores it in the optional
      `ierror`, or prints it if `ierror` is absent and the call failed.
-3. Add a specific procedure for each type and rank of buffer that a code
-   needs, under the generic interface. It only passes `c_loc` of its buffers
-   to the core, so it is a few lines.
-4. Add a test in `tests/`. It must also pass with the vendor's `mpif90`.
+3. Add a test in `tests/`. It must also pass with the vendor's `mpif90`.
 
 ```fortran
-subroutine MPI_Bcast_real_2D(buffer, count, datatype, root, comm, ierror)
-    real(8), dimension(:, :), target :: buffer
-    integer, intent(in) :: count, root, datatype, comm
+subroutine MPI_Bcast_proc(buffer, count, datatype, root, comm, ierror)
+    use mpi_c_bindings, only: c_mpi_bcast
+    type(*), dimension(..), contiguous, target, intent(inout) :: buffer
+    integer, intent(in) :: count, datatype, root, comm
     integer, optional, intent(out) :: ierror
-    call bcast_core(c_loc(buffer), count, datatype, root, comm, ierror)
-end subroutine MPI_Bcast_real_2D
+    call set_ierror(c_mpi_bcast(c_loc(buffer), count, datatype_f2c(datatype), &
+        rank_f2c(root), comm_f2c(comm)), "MPI_Bcast", ierror)
+end subroutine MPI_Bcast_proc
 ```
+
+`type(*), dimension(..)` needs a Fortran 2018 compiler: gfortran, flang,
+ifx, or LFortran 0.69 or newer (it needs lfortran/lfortran#16101, #17132
+and #17133).
 
 ## The MPI-5 ABI
 
@@ -344,10 +354,6 @@ What remains, once Open MPI ships the ABI too:
   `MPI_Error_class`. Code that compares `ierror` directly with `MPI_ERR_*`
   works only when the native code equals the ABI class.
 - There are no user-defined error handlers or error classes.
-- Each routine supports only the type/kind/rank variants it has specifics
-  for (#64). `MPI_Bcast`, `MPI_Reduce` and `MPI_Allreduce` cover integer,
-  real(4), real(8) and logical, `MPI_Exscan` and `MPI_Scatter` integer,
-  real(4) and real(8), each as scalars and arrays of rank 1 to 3; the other
-  routines cover what real codes have needed so far. One `type(*),
-  dimension(..)` specific per routine will replace them once LFortran
-  supports it (#150).
+- The buffer of a nonblocking routine must be contiguous; the program stops
+  otherwise. With the vendors' `mpi` module, the compiler may pass a
+  temporary copy instead, which MPI then uses after it is gone.

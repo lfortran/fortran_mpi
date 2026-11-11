@@ -22,7 +22,7 @@ platforms = ["linux-64"]
 ifx_linux-64 = "*"
 
 [feature.lfortran.dependencies]
-lfortran = "*"
+lfortran = ">=0.69.0"
 
 [feature.openmpi.dependencies]
 openmpi = "*"
