@@ -171,8 +171,12 @@ implementation has its own values:
 
 - `rank_f2c` and `rank_c2f` translate ranks. Valid ranks are never negative
   and all special ranks are, so the common case costs one comparison.
-- `tag_f2c`, `thread_level_f2c`/`thread_level_c2f` and `split_type_f2c`
-  translate tags, thread levels and split types.
+- `tag_f2c`/`tag_c2f`, `thread_level_f2c`/`thread_level_c2f` and
+  `split_type_f2c` translate tags, thread levels and split types.
+- `count_c2f` translates a count that MPI returns, which may be
+  `MPI_UNDEFINED` (`MPI_Get_count`). `index_c2f` translates an index into an
+  array of requests (`MPI_Waitany`): it may be `MPI_UNDEFINED`, and otherwise
+  it counts from 0 in C and from 1 in Fortran.
 
 Every rank or tag that a wrapper passes to C goes through `rank_f2c` or
 `tag_f2c`. Every rank that comes back goes through `rank_c2f`: for example the
@@ -192,13 +196,16 @@ The Fortran status has the ABI layout: `MPI_STATUS_SIZE` = 8 integers.
   `MPI_STATUS_SIZE` C ints.
 - `status_c2f` copies it into the Fortran status. It finds the three public
   fields using `offsetof`, which `src/mpi_constants.c` exports, and translates
-  the source with `rank_c2f`.
+  the source with `rank_c2f` and the tag with `tag_c2f`. The tag is special
+  in an empty status, such as `MPI_Test` returns for `MPI_REQUEST_NULL`:
+  `MPI_ANY_TAG`.
+- `status_f2c` is the inverse, for `MPI_Get_count`, which takes a status.
 - The native `MPI_Status` is 20 bytes in MPICH and 24 in Open MPI. Both fit.
 
 We do not use the native `MPI_Status_c2f`. It writes the native Fortran
 layout: 6 integers for Open MPI, and no rank translation.
 
-`MPI_Waitall` receives the native statuses into one array, each
+`MPI_Waitall` and `MPI_Testall` receive the native statuses into one array, each
 `sizeof(MPI_Status)` bytes, and converts them one by one.
 
 ### `MPI_IN_PLACE`, `MPI_STATUS_IGNORE` and `MPI_STATUSES_IGNORE`

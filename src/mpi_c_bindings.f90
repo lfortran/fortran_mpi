@@ -582,5 +582,56 @@ module mpi_c_bindings
             integer(c_int) :: c_mpi_reduce_scatter_block
         end function c_mpi_reduce_scatter_block
 
+        function c_mpi_test(request, flag, status) bind(C, name="MPI_Test")
+            use iso_c_binding, only: c_int, c_ptr
+            integer(kind=MPI_HANDLE_KIND), intent(inout) :: request
+            integer(c_int), intent(out) :: flag
+            type(c_ptr), value :: status
+            integer(c_int) :: c_mpi_test
+        end function c_mpi_test
+
+        function c_mpi_testall(count, requests, flag, statuses) bind(C, name="MPI_Testall")
+            use iso_c_binding, only: c_int, c_ptr
+            integer(c_int), value :: count
+            integer(kind=MPI_HANDLE_KIND), dimension(*), intent(inout) :: requests
+            integer(c_int), intent(out) :: flag
+            type(c_ptr), value :: statuses
+            integer(c_int) :: c_mpi_testall
+        end function c_mpi_testall
+
+        function c_mpi_waitany(count, requests, index, status) bind(C, name="MPI_Waitany")
+            use iso_c_binding, only: c_int, c_ptr
+            integer(c_int), value :: count
+            integer(kind=MPI_HANDLE_KIND), dimension(*), intent(inout) :: requests
+            integer(c_int), intent(out) :: index
+            type(c_ptr), value :: status
+            integer(c_int) :: c_mpi_waitany
+        end function c_mpi_waitany
+
+        function c_mpi_probe(source, tag, comm, status) bind(C, name="MPI_Probe")
+            use iso_c_binding, only: c_int, c_ptr
+            integer(c_int), value :: source, tag
+            integer(kind=MPI_HANDLE_KIND), value :: comm
+            type(c_ptr), value :: status
+            integer(c_int) :: c_mpi_probe
+        end function c_mpi_probe
+
+        function c_mpi_iprobe(source, tag, comm, flag, status) bind(C, name="MPI_Iprobe")
+            use iso_c_binding, only: c_int, c_ptr
+            integer(c_int), value :: source, tag
+            integer(kind=MPI_HANDLE_KIND), value :: comm
+            integer(c_int), intent(out) :: flag
+            type(c_ptr), value :: status
+            integer(c_int) :: c_mpi_iprobe
+        end function c_mpi_iprobe
+
+        function c_mpi_get_count(status, datatype, count) bind(C, name="MPI_Get_count")
+            use iso_c_binding, only: c_int, c_ptr
+            type(c_ptr), value :: status
+            integer(kind=MPI_HANDLE_KIND), value :: datatype
+            integer(c_int), intent(out) :: count
+            integer(c_int) :: c_mpi_get_count
+        end function c_mpi_get_count
+
     end interface
 end module mpi_c_bindings

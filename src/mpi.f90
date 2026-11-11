@@ -174,8 +174,9 @@ module mpi
     private :: check_native_mpi, user_handle_c2f
     private :: op_f2c, comm_f2c, comm_c2f, group_f2c, group_c2f, info_f2c
     private :: request_f2c, request_c2f, datatype_f2c
-    private :: rank_f2c, rank_c2f, tag_f2c, thread_level_f2c, thread_level_c2f
-    private :: split_type_f2c, color_f2c, status_c2f, c_string_to_fortran, set_ierror
+    private :: rank_f2c, rank_c2f, tag_f2c, tag_c2f, thread_level_f2c, thread_level_c2f
+    private :: split_type_f2c, color_f2c, count_c2f, index_c2f
+    private :: status_c2f, status_f2c, c_string_to_fortran, set_ierror
     private :: errhandler_f2c, error_class_c2f, is_status_ignore, is_statuses_ignore
     private :: in_place_or
     private :: c_int, c_char, c_ptr, c_loc, c_null_ptr, c_associated
@@ -379,6 +380,30 @@ module mpi
     interface MPI_Reduce_scatter_block
         module procedure MPI_Reduce_scatter_block_proc
     end interface MPI_Reduce_scatter_block
+
+    interface MPI_Test
+        module procedure MPI_Test_proc
+    end interface MPI_Test
+
+    interface MPI_Testall
+        module procedure MPI_Testall_proc
+    end interface MPI_Testall
+
+    interface MPI_Waitany
+        module procedure MPI_Waitany_proc
+    end interface MPI_Waitany
+
+    interface MPI_Probe
+        module procedure MPI_Probe_proc
+    end interface MPI_Probe
+
+    interface MPI_Iprobe
+        module procedure MPI_Iprobe_proc
+    end interface MPI_Iprobe
+
+    interface MPI_Get_count
+        module procedure MPI_Get_count_proc
+    end interface MPI_Get_count
 
     contains
 
@@ -596,6 +621,16 @@ module mpi
         end if
     end function tag_f2c
 
+    integer function tag_c2f(c_tag) result(tag)
+        use mpi_c_bindings, only: c_mpi_any_tag
+        integer, intent(in) :: c_tag
+        if (c_tag == c_mpi_any_tag) then
+            tag = MPI_ANY_TAG
+        else
+            tag = c_tag
+        end if
+    end function tag_c2f
+
     integer function thread_level_f2c(level) result(c_level)
         use mpi_c_bindings, only: c_mpi_thread_single, c_mpi_thread_funneled, &
             c_mpi_thread_serialized, c_mpi_thread_multiple
@@ -653,6 +688,29 @@ module mpi
         end if
     end function color_f2c
 
+    integer function count_c2f(c_count) result(count)
+        ! A count that MPI returns, which may be MPI_UNDEFINED
+        use mpi_c_bindings, only: c_mpi_undefined
+        integer, intent(in) :: c_count
+        if (c_count == c_mpi_undefined) then
+            count = MPI_UNDEFINED
+        else
+            count = c_count
+        end if
+    end function count_c2f
+
+    integer function index_c2f(c_index) result(index)
+        ! An index into an array of requests: C counts from 0, Fortran from 1.
+        ! MPI_UNDEFINED means that no request was active.
+        use mpi_c_bindings, only: c_mpi_undefined
+        integer, intent(in) :: c_index
+        if (c_index == c_mpi_undefined) then
+            index = MPI_UNDEFINED
+        else
+            index = c_index + 1
+        end if
+    end function index_c2f
+
     logical function is_status_ignore(status)
         ! Whether the status argument is MPI_STATUS_IGNORE. The pointers are
         ! compared as variables, which works around an LFortran bug with
@@ -687,7 +745,7 @@ module mpi
         i_error = c_offsetof_mpi_error/4 + 1
         status = 0
         status(MPI_SOURCE) = rank_c2f(c_status(i_source))
-        status(MPI_TAG) = c_status(i_tag)
+        status(MPI_TAG) = tag_c2f(c_status(i_tag))
         status(MPI_ERROR) = c_status(i_error)
         j = MPI_ERROR + 1
         do i = 1, c_sizeof_mpi_status/4
@@ -697,6 +755,30 @@ module mpi
             end if
         end do
     end subroutine status_c2f
+
+    subroutine status_f2c(status, c_status)
+        ! The inverse of status_c2f: converts a status in the ABI layout back
+        ! to a native MPI_Status, for MPI_Get_count.
+        use mpi_c_bindings, only: c_sizeof_mpi_status, c_offsetof_mpi_source, &
+            c_offsetof_mpi_tag, c_offsetof_mpi_error
+        integer, intent(in) :: status(MPI_STATUS_SIZE)
+        integer(c_int), intent(out) :: c_status(*)
+        integer :: i, j, i_source, i_tag, i_error
+
+        i_source = c_offsetof_mpi_source/4 + 1
+        i_tag = c_offsetof_mpi_tag/4 + 1
+        i_error = c_offsetof_mpi_error/4 + 1
+        c_status(i_source) = rank_f2c(status(MPI_SOURCE))
+        c_status(i_tag) = tag_f2c(status(MPI_TAG))
+        c_status(i_error) = status(MPI_ERROR)
+        j = MPI_ERROR + 1
+        do i = 1, c_sizeof_mpi_status/4
+            if (i /= i_source .and. i /= i_tag .and. i /= i_error) then
+                c_status(i) = status(j)
+                j = j + 1
+            end if
+        end do
+    end subroutine status_f2c
 
     subroutine c_string_to_fortran(c_name, resultlen, name)
         character(kind=c_char), intent(in) :: c_name(*)
@@ -1063,6 +1145,88 @@ module mpi
         call set_ierror(local_ierr, "MPI_Waitall", ierror)
     end subroutine MPI_Waitall_proc
 
+    subroutine MPI_Test_proc(request, flag, status, ierror)
+        use mpi_c_bindings, only: c_mpi_test, c_mpi_status_ignore
+        integer, intent(inout) :: request
+        logical, intent(out) :: flag
+        integer, target, intent(out) :: status(MPI_STATUS_SIZE)
+        integer, optional, intent(out) :: ierror
+        integer(kind=MPI_HANDLE_KIND) :: c_request
+        integer(c_int), target :: c_status(MPI_STATUS_SIZE)
+        integer(c_int) :: c_flag, local_ierr
+        c_request = request_f2c(request)
+        if (is_status_ignore(status)) then
+            local_ierr = c_mpi_test(c_request, c_flag, c_mpi_status_ignore)
+        else
+            local_ierr = c_mpi_test(c_request, c_flag, c_loc(c_status))
+            if (local_ierr == MPI_SUCCESS .and. c_flag /= 0) call status_c2f(c_status, status)
+        end if
+        flag = (c_flag /= 0)
+        request = request_c2f(c_request)
+        call set_ierror(local_ierr, "MPI_Test", ierror)
+    end subroutine MPI_Test_proc
+
+    subroutine MPI_Testall_proc(count, array_of_requests, flag, array_of_statuses, ierror)
+        use mpi_c_bindings, only: c_mpi_testall, c_mpi_statuses_ignore, c_sizeof_mpi_status
+        integer, intent(in) :: count
+        integer, dimension(count), intent(inout) :: array_of_requests
+        logical, intent(out) :: flag
+        integer, target, intent(out) :: array_of_statuses(MPI_STATUS_SIZE, *)
+        integer, optional, intent(out) :: ierror
+        integer(kind=MPI_HANDLE_KIND) :: c_requests(count)
+        ! The native statuses, as C ints; each has c_sizeof_mpi_status bytes
+        integer(c_int), allocatable, target :: c_statuses(:)
+        integer(c_int) :: c_flag, local_ierr
+        integer :: i, n
+        do i = 1, count
+            c_requests(i) = request_f2c(array_of_requests(i))
+        end do
+        if (is_statuses_ignore(array_of_statuses)) then
+            local_ierr = c_mpi_testall(count, c_requests, c_flag, c_mpi_statuses_ignore)
+        else
+            n = c_sizeof_mpi_status/4
+            allocate(c_statuses(n*max(count, 1)))
+            local_ierr = c_mpi_testall(count, c_requests, c_flag, c_loc(c_statuses))
+            if (local_ierr == MPI_SUCCESS .and. c_flag /= 0) then
+                do i = 1, count
+                    call status_c2f(c_statuses((i-1)*n+1:i*n), array_of_statuses(:, i))
+                end do
+            end if
+        end if
+        flag = (c_flag /= 0)
+        do i = 1, count
+            array_of_requests(i) = request_c2f(c_requests(i))
+        end do
+        call set_ierror(local_ierr, "MPI_Testall", ierror)
+    end subroutine MPI_Testall_proc
+
+    subroutine MPI_Waitany_proc(count, array_of_requests, index, status, ierror)
+        use mpi_c_bindings, only: c_mpi_waitany, c_mpi_status_ignore
+        integer, intent(in) :: count
+        integer, dimension(count), intent(inout) :: array_of_requests
+        integer, intent(out) :: index
+        integer, target, intent(out) :: status(MPI_STATUS_SIZE)
+        integer, optional, intent(out) :: ierror
+        integer(kind=MPI_HANDLE_KIND) :: c_requests(count)
+        integer(c_int), target :: c_status(MPI_STATUS_SIZE)
+        integer(c_int) :: c_index, local_ierr
+        integer :: i
+        do i = 1, count
+            c_requests(i) = request_f2c(array_of_requests(i))
+        end do
+        if (is_status_ignore(status)) then
+            local_ierr = c_mpi_waitany(count, c_requests, c_index, c_mpi_status_ignore)
+        else
+            local_ierr = c_mpi_waitany(count, c_requests, c_index, c_loc(c_status))
+            if (local_ierr == MPI_SUCCESS) call status_c2f(c_status, status)
+        end if
+        index = index_c2f(c_index)
+        do i = 1, count
+            array_of_requests(i) = request_c2f(c_requests(i))
+        end do
+        call set_ierror(local_ierr, "MPI_Waitany", ierror)
+    end subroutine MPI_Waitany_proc
+
     ! Point-to-point
 
     subroutine MPI_Send_proc(buf, count, datatype, dest, tag, comm, ierror)
@@ -1161,6 +1325,58 @@ module mpi
         end if
         call set_ierror(local_ierr, "MPI_Sendrecv", ierror)
     end subroutine MPI_Sendrecv_proc
+
+    subroutine MPI_Probe_proc(source, tag, comm, status, ierror)
+        use mpi_c_bindings, only: c_mpi_probe, c_mpi_status_ignore
+        integer, intent(in) :: source, tag, comm
+        integer, target, intent(out) :: status(MPI_STATUS_SIZE)
+        integer, optional, intent(out) :: ierror
+        integer(c_int), target :: c_status(MPI_STATUS_SIZE)
+        integer(c_int) :: local_ierr
+        if (is_status_ignore(status)) then
+            local_ierr = c_mpi_probe(rank_f2c(source), tag_f2c(tag), comm_f2c(comm), &
+                c_mpi_status_ignore)
+        else
+            local_ierr = c_mpi_probe(rank_f2c(source), tag_f2c(tag), comm_f2c(comm), &
+                c_loc(c_status))
+            if (local_ierr == MPI_SUCCESS) call status_c2f(c_status, status)
+        end if
+        call set_ierror(local_ierr, "MPI_Probe", ierror)
+    end subroutine MPI_Probe_proc
+
+    subroutine MPI_Iprobe_proc(source, tag, comm, flag, status, ierror)
+        use mpi_c_bindings, only: c_mpi_iprobe, c_mpi_status_ignore
+        integer, intent(in) :: source, tag, comm
+        logical, intent(out) :: flag
+        integer, target, intent(out) :: status(MPI_STATUS_SIZE)
+        integer, optional, intent(out) :: ierror
+        integer(c_int), target :: c_status(MPI_STATUS_SIZE)
+        integer(c_int) :: c_flag, local_ierr
+        if (is_status_ignore(status)) then
+            local_ierr = c_mpi_iprobe(rank_f2c(source), tag_f2c(tag), comm_f2c(comm), c_flag, &
+                c_mpi_status_ignore)
+        else
+            local_ierr = c_mpi_iprobe(rank_f2c(source), tag_f2c(tag), comm_f2c(comm), c_flag, &
+                c_loc(c_status))
+            if (local_ierr == MPI_SUCCESS .and. c_flag /= 0) call status_c2f(c_status, status)
+        end if
+        flag = (c_flag /= 0)
+        call set_ierror(local_ierr, "MPI_Iprobe", ierror)
+    end subroutine MPI_Iprobe_proc
+
+    subroutine MPI_Get_count_proc(status, datatype, count, ierror)
+        use mpi_c_bindings, only: c_mpi_get_count
+        integer, intent(in) :: status(MPI_STATUS_SIZE)
+        integer, intent(in) :: datatype
+        integer, intent(out) :: count
+        integer, optional, intent(out) :: ierror
+        integer(c_int), target :: c_status(MPI_STATUS_SIZE)
+        integer(c_int) :: c_count, local_ierr
+        call status_f2c(status, c_status)
+        local_ierr = c_mpi_get_count(c_loc(c_status), datatype_f2c(datatype), c_count)
+        count = count_c2f(c_count)
+        call set_ierror(local_ierr, "MPI_Get_count", ierror)
+    end subroutine MPI_Get_count_proc
 
     ! Collectives
 
