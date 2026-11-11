@@ -95,6 +95,13 @@ module mpi
 
     integer, parameter :: MPI_MAX_OBJECT_NAME = 128
     integer, parameter :: MPI_MAX_ERROR_STRING = 512
+    integer, parameter :: MPI_MAX_PROCESSOR_NAME = 256
+
+    ! Results of MPI_Comm_compare
+    integer, parameter :: MPI_IDENT = 201
+    integer, parameter :: MPI_CONGRUENT = 202
+    integer, parameter :: MPI_SIMILAR = 203
+    integer, parameter :: MPI_UNEQUAL = 204
 
     ! Status: MPI_SOURCE, MPI_TAG and MPI_ERROR, then 5 integers that hold
     ! the rest of the native MPI_Status
@@ -175,7 +182,7 @@ module mpi
     private :: op_f2c, comm_f2c, comm_c2f, group_f2c, group_c2f, info_f2c
     private :: request_f2c, request_c2f, datatype_f2c, datatype_c2f
     private :: rank_f2c, rank_c2f, tag_f2c, tag_c2f, thread_level_f2c, thread_level_c2f
-    private :: split_type_f2c, color_f2c, count_c2f, index_c2f
+    private :: split_type_f2c, color_f2c, count_c2f, index_c2f, comparison_c2f
     private :: status_c2f, status_f2c, c_string_to_fortran, set_ierror
     private :: errhandler_f2c, error_class_c2f, is_status_ignore, is_statuses_ignore
     private :: in_place_or
@@ -421,6 +428,22 @@ module mpi
         module procedure MPI_Type_free_proc
     end interface MPI_Type_free
 
+    interface MPI_Finalized
+        module procedure MPI_Finalized_proc
+    end interface MPI_Finalized
+
+    interface MPI_Wtick
+        module procedure MPI_Wtick_proc
+    end interface MPI_Wtick
+
+    interface MPI_Get_processor_name
+        module procedure MPI_Get_processor_name_proc
+    end interface MPI_Get_processor_name
+
+    interface MPI_Comm_compare
+        module procedure MPI_Comm_compare_proc
+    end interface MPI_Comm_compare
+
     contains
 
     ! Translation between the ABI values of src/mpi.f90 and the native values
@@ -433,7 +456,7 @@ module mpi
         ! Checks that this library was compiled for the MPI library it is
         ! linked with. Called before MPI is initialized.
         use mpi_c_bindings, only: c_sizeof_mpi_comm, c_sizeof_mpi_status, &
-            c_mpi_max_object_name, c_mpi_max_error_string
+            c_mpi_max_object_name, c_mpi_max_error_string, c_mpi_max_processor_name
         if (c_sizeof_mpi_comm /= MPI_HANDLE_KIND) then
             print *, "fortran_mpi: compiled with MPI_HANDLE_KIND =", MPI_HANDLE_KIND, &
                 "but the MPI library's handles have", c_sizeof_mpi_comm, "bytes."
@@ -454,6 +477,11 @@ module mpi
         if (c_mpi_max_error_string > MPI_MAX_ERROR_STRING) then
             print *, "fortran_mpi: the native MPI_MAX_ERROR_STRING is", &
                 c_mpi_max_error_string, "more than", MPI_MAX_ERROR_STRING
+            error stop 1
+        end if
+        if (c_mpi_max_processor_name > MPI_MAX_PROCESSOR_NAME) then
+            print *, "fortran_mpi: the native MPI_MAX_PROCESSOR_NAME is", &
+                c_mpi_max_processor_name, "more than", MPI_MAX_PROCESSOR_NAME
             error stop 1
         end if
     end subroutine check_native_mpi
@@ -717,6 +745,23 @@ module mpi
         end if
     end function color_f2c
 
+    integer function comparison_c2f(c_result) result(comparison)
+        ! The result of MPI_Comm_compare
+        use mpi_c_bindings, only: c_mpi_ident, c_mpi_congruent, c_mpi_similar, c_mpi_unequal
+        integer, intent(in) :: c_result
+        if (c_result == c_mpi_ident) then
+            comparison = MPI_IDENT
+        else if (c_result == c_mpi_congruent) then
+            comparison = MPI_CONGRUENT
+        else if (c_result == c_mpi_similar) then
+            comparison = MPI_SIMILAR
+        else if (c_result == c_mpi_unequal) then
+            comparison = MPI_UNEQUAL
+        else
+            comparison = c_result
+        end if
+    end function comparison_c2f
+
     integer function count_c2f(c_count) result(count)
         ! A count that MPI returns, which may be MPI_UNDEFINED
         use mpi_c_bindings, only: c_mpi_undefined
@@ -876,6 +921,16 @@ module mpi
         call set_ierror(local_ierr, "MPI_Initialized", ierr)
     end subroutine MPI_Initialized_proc
 
+    subroutine MPI_Finalized_proc(flag, ierror)
+        use mpi_c_bindings, only: c_mpi_finalized
+        logical, intent(out) :: flag
+        integer, optional, intent(out) :: ierror
+        integer(c_int) :: c_flag, local_ierr
+        local_ierr = c_mpi_finalized(c_flag)
+        flag = (c_flag /= 0)
+        call set_ierror(local_ierr, "MPI_Finalized", ierror)
+    end subroutine MPI_Finalized_proc
+
     subroutine MPI_Finalize_proc(ierr)
         use mpi_c_bindings, only: c_mpi_finalize
         integer, optional, intent(out) :: ierr
@@ -895,6 +950,24 @@ module mpi
         time = c_mpi_wtime()
     end function MPI_Wtime_proc
 
+    function MPI_Wtick_proc() result(tick)
+        use mpi_c_bindings, only: c_mpi_wtick
+        real(8) :: tick
+        tick = c_mpi_wtick()
+    end function MPI_Wtick_proc
+
+    subroutine MPI_Get_processor_name_proc(name, resultlen, ierror)
+        use mpi_c_bindings, only: c_mpi_get_processor_name
+        character(len=*), intent(out) :: name
+        integer, intent(out) :: resultlen
+        integer, optional, intent(out) :: ierror
+        character(kind=c_char) :: c_name(MPI_MAX_PROCESSOR_NAME)
+        integer(c_int) :: local_ierr
+        local_ierr = c_mpi_get_processor_name(c_name, resultlen)
+        call c_string_to_fortran(c_name, resultlen, name)
+        call set_ierror(local_ierr, "MPI_Get_processor_name", ierror)
+    end subroutine MPI_Get_processor_name_proc
+
     ! Communicators and groups
 
     subroutine MPI_Comm_size_proc(comm, size, ierror)
@@ -912,6 +985,17 @@ module mpi
         integer, optional, intent(out) :: ierror
         call set_ierror(c_mpi_comm_rank(comm_f2c(comm), rank), "MPI_Comm_rank", ierror)
     end subroutine MPI_Comm_rank_proc
+
+    subroutine MPI_Comm_compare_proc(comm1, comm2, result, ierror)
+        use mpi_c_bindings, only: c_mpi_comm_compare
+        integer, intent(in) :: comm1, comm2
+        integer, intent(out) :: result
+        integer, optional, intent(out) :: ierror
+        integer(c_int) :: c_result, local_ierr
+        local_ierr = c_mpi_comm_compare(comm_f2c(comm1), comm_f2c(comm2), c_result)
+        result = comparison_c2f(c_result)
+        call set_ierror(local_ierr, "MPI_Comm_compare", ierror)
+    end subroutine MPI_Comm_compare_proc
 
     subroutine MPI_Comm_Group_proc(comm, group, ierror)
         use mpi_c_bindings, only: c_mpi_comm_group

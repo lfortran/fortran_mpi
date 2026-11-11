@@ -157,9 +157,10 @@ handle still lands in 1 .. 4095.
 ### Special integers
 
 These include the wildcards and special ranks (`MPI_ANY_SOURCE`,
-`MPI_ANY_TAG`, `MPI_PROC_NULL`, `MPI_ROOT`, `MPI_UNDEFINED`), the thread levels
-and `MPI_COMM_TYPE_SHARED`. MPI passes them as plain integers, and every
-implementation has its own values:
+`MPI_ANY_TAG`, `MPI_PROC_NULL`, `MPI_ROOT`, `MPI_UNDEFINED`), the thread levels,
+`MPI_COMM_TYPE_SHARED` and the results of `MPI_Comm_compare` (`MPI_IDENT`,
+...). MPI passes them as plain integers, and every implementation has its own
+values:
 
 | constant | ABI | Open MPI | MPICH |
 |---|---|---|---|
@@ -167,6 +168,7 @@ implementation has its own values:
 | `MPI_PROC_NULL` | −3 | −2 | −1 |
 | `MPI_THREAD_FUNNELED` | 1024 | 1 | 1 |
 | `MPI_COMM_TYPE_SHARED` | 221 | 0 | 1 |
+| `MPI_IDENT` | 201 | 0 | 0 |
 
 `src/mpi_constants.c` exports the native values (`c_MPI_PROC_NULL`, ...):
 
@@ -174,6 +176,7 @@ implementation has its own values:
   and all special ranks are, so the common case costs one comparison.
 - `tag_f2c`/`tag_c2f`, `thread_level_f2c`/`thread_level_c2f` and
   `split_type_f2c` translate tags, thread levels and split types.
+- `comparison_c2f` translates the result of `MPI_Comm_compare`.
 - `count_c2f` translates a count that MPI returns, which may be
   `MPI_UNDEFINED` (`MPI_Get_count`). `index_c2f` translates an index into an
   array of requests (`MPI_Waitany`): it may be `MPI_UNDEFINED`, and otherwise
@@ -263,8 +266,8 @@ program with an explanation in two cases:
   `src/mpi_c_bindings.f90` was compiled without `-DOPEN_MPI` for Open MPI, or
   without `-DMPI_ABI` for `libmpi_abi`.
   Without this check, handles would be silently truncated.
-- The native `MPI_Status`, `MPI_MAX_OBJECT_NAME` or `MPI_MAX_ERROR_STRING`
-  does not fit the ABI sizes.
+- The native `MPI_Status`, `MPI_MAX_OBJECT_NAME`, `MPI_MAX_ERROR_STRING` or
+  `MPI_MAX_PROCESSOR_NAME` does not fit the ABI sizes.
 
 ### Adding a constant
 

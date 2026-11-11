@@ -52,6 +52,12 @@ module mpi_c_bindings
 
     integer(c_int), bind(C, name="c_MPI_MAX_OBJECT_NAME") :: c_mpi_max_object_name
     integer(c_int), bind(C, name="c_MPI_MAX_ERROR_STRING") :: c_mpi_max_error_string
+    integer(c_int), bind(C, name="c_MPI_MAX_PROCESSOR_NAME") :: c_mpi_max_processor_name
+
+    integer(c_int), bind(C, name="c_MPI_IDENT") :: c_mpi_ident
+    integer(c_int), bind(C, name="c_MPI_CONGRUENT") :: c_mpi_congruent
+    integer(c_int), bind(C, name="c_MPI_SIMILAR") :: c_mpi_similar
+    integer(c_int), bind(C, name="c_MPI_UNEQUAL") :: c_mpi_unequal
 
     type(c_ptr), bind(C, name="c_MPI_IN_PLACE") :: c_mpi_in_place
     type(c_ptr), bind(C, name="c_MPI_STATUS_IGNORE") :: c_mpi_status_ignore
@@ -667,6 +673,31 @@ module mpi_c_bindings
             integer(kind=MPI_HANDLE_KIND), intent(inout) :: datatype
             integer(c_int) :: c_mpi_type_free
         end function c_mpi_type_free
+
+        function c_mpi_finalized(flag) bind(C, name="MPI_Finalized")
+            use iso_c_binding, only: c_int
+            integer(c_int), intent(out) :: flag
+            integer(c_int) :: c_mpi_finalized
+        end function c_mpi_finalized
+
+        function c_mpi_wtick() result(tick) bind(C, name="MPI_Wtick")
+            use iso_c_binding, only: c_double
+            real(c_double) :: tick
+        end function c_mpi_wtick
+
+        function c_mpi_get_processor_name(name, resultlen) bind(C, name="MPI_Get_processor_name")
+            use iso_c_binding, only: c_int, c_char
+            character(kind=c_char), intent(out) :: name(*)
+            integer(c_int), intent(out) :: resultlen
+            integer(c_int) :: c_mpi_get_processor_name
+        end function c_mpi_get_processor_name
+
+        function c_mpi_comm_compare(comm1, comm2, result) bind(C, name="MPI_Comm_compare")
+            use iso_c_binding, only: c_int
+            integer(kind=MPI_HANDLE_KIND), value :: comm1, comm2
+            integer(c_int), intent(out) :: result
+            integer(c_int) :: c_mpi_comm_compare
+        end function c_mpi_comm_compare
 
     end interface
 end module mpi_c_bindings
