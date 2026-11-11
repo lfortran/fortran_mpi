@@ -64,10 +64,13 @@ to any Fortran compiler, with any MPI implementation.
    `src/mpi_constants.c` uses `#if` only to ask whether the library defines a
    constant at all, for the error classes of MPI 4 and later.
 
-8. **One specific procedure per routine.** A buffer is `type(*),
+8. **One module procedure per routine.** A buffer is `type(*),
    dimension(..)`, so every routine takes buffers of any type, kind and rank,
-   as with the vendors' `mpi` module. Routines are added when a real code
-   needs them (POT3D, PARALLAX, user reports), together with a test.
+   as with the vendors' `mpi` module. Each routine is a plain module
+   procedure named after it, such as `MPI_Bcast`; a generic interface is
+   only needed for a routine that dispatches on type, such as `MPI_Sizeof`.
+   Routines are added when a real code needs them (POT3D, PARALLAX, user
+   reports), together with a test.
 
 9. **Verified by running programs.**
    - Every test runs with 1, 2 and 4 ranks.
@@ -83,7 +86,7 @@ to any Fortran compiler, with any MPI implementation.
 user code:  use mpi
               │
 src/mpi.f90             module mpi: the MPI-5 ABI constants, the MPI routines
-              │         as generic interfaces, the translation functions
+              │         as module procedures, the translation functions
 src/mpi_c_bindings.f90  module mpi_c_bindings: bind(C) interfaces to the
               │         C functions, bind(C) views of the tables, MPI_HANDLE_KIND
 src/mpi_constants.c     native values of the constants, as tables
@@ -287,8 +290,8 @@ program with an explanation in two cases:
 1. Add a `bind(C)` interface to `src/mpi_c_bindings.f90` that mirrors the C
    prototype exactly: handles are `integer(kind=MPI_HANDLE_KIND), value`,
    buffers are `type(c_ptr), value`.
-2. In `src/mpi.f90`, add one specific procedure, e.g. `MPI_Bcast_proc`,
-   under the generic interface `MPI_Bcast`.
+2. In `src/mpi.f90`, add one module procedure with the routine's name, e.g.
+   `MPI_Bcast`.
    - Each buffer is `type(*), dimension(..), target`, and the C function
      gets `c_loc` of it. A buffer that may be `MPI_IN_PLACE` goes through
      `in_place_or`.
@@ -306,14 +309,14 @@ program with an explanation in two cases:
 3. Add a test in `tests/`. It must also pass with the vendor's `mpif90`.
 
 ```fortran
-subroutine MPI_Bcast_proc(buffer, count, datatype, root, comm, ierror)
+subroutine MPI_Bcast(buffer, count, datatype, root, comm, ierror)
     use mpi_c_bindings, only: c_mpi_bcast
     type(*), dimension(..), contiguous, target, intent(inout) :: buffer
     integer, intent(in) :: count, datatype, root, comm
     integer, optional, intent(out) :: ierror
     call set_ierror(c_mpi_bcast(c_loc(buffer), count, datatype_f2c(datatype), &
         rank_f2c(root), comm_f2c(comm)), "MPI_Bcast", ierror)
-end subroutine MPI_Bcast_proc
+end subroutine MPI_Bcast
 ```
 
 `type(*), dimension(..)` needs a Fortran 2018 compiler: gfortran, flang,
