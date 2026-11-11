@@ -173,7 +173,7 @@ module mpi
     private :: USER_HANDLE_OFFSET
     private :: check_native_mpi, user_handle_c2f
     private :: op_f2c, comm_f2c, comm_c2f, group_f2c, group_c2f, info_f2c
-    private :: request_f2c, request_c2f, datatype_f2c
+    private :: request_f2c, request_c2f, datatype_f2c, datatype_c2f
     private :: rank_f2c, rank_c2f, tag_f2c, tag_c2f, thread_level_f2c, thread_level_c2f
     private :: split_type_f2c, color_f2c, count_c2f, index_c2f
     private :: status_c2f, status_f2c, c_string_to_fortran, set_ierror
@@ -405,6 +405,22 @@ module mpi
         module procedure MPI_Get_count_proc
     end interface MPI_Get_count
 
+    interface MPI_Type_contiguous
+        module procedure MPI_Type_contiguous_proc
+    end interface MPI_Type_contiguous
+
+    interface MPI_Type_vector
+        module procedure MPI_Type_vector_proc
+    end interface MPI_Type_vector
+
+    interface MPI_Type_commit
+        module procedure MPI_Type_commit_proc
+    end interface MPI_Type_commit
+
+    interface MPI_Type_free
+        module procedure MPI_Type_free_proc
+    end interface MPI_Type_free
+
     contains
 
     ! Translation between the ABI values of src/mpi.f90 and the native values
@@ -552,6 +568,19 @@ module mpi
             c_datatype = c_mpi_type_f2c(datatype - USER_HANDLE_OFFSET)
         end if
     end function datatype_f2c
+
+    integer function datatype_c2f(c_datatype) result(datatype)
+        use mpi_c_bindings, only: c_datatype_table, c_mpi_type_c2f
+        integer(kind=MPI_HANDLE_KIND), intent(in) :: c_datatype
+        integer :: i
+        do i = 0, ubound(c_datatype_table, 1)
+            if (c_datatype == c_datatype_table(i)) then
+                datatype = MPI_DATATYPE_NULL + i
+                return
+            end if
+        end do
+        datatype = user_handle_c2f(c_mpi_type_c2f(c_datatype))
+    end function datatype_c2f
 
     integer(kind=MPI_HANDLE_KIND) function errhandler_f2c(errhandler) result(c_errhandler)
         use mpi_c_bindings, only: c_errhandler_table
@@ -1542,6 +1571,57 @@ module mpi
             recvcount, datatype_f2c(datatype), op_f2c(op), comm_f2c(comm)), &
             "MPI_Reduce_scatter_block", ierror)
     end subroutine MPI_Reduce_scatter_block_proc
+
+    ! Derived datatypes
+
+    subroutine MPI_Type_contiguous_proc(count, oldtype, newtype, ierror)
+        use mpi_c_bindings, only: c_mpi_type_contiguous
+        integer, intent(in) :: count, oldtype
+        integer, intent(out) :: newtype
+        integer, optional, intent(out) :: ierror
+        integer(kind=MPI_HANDLE_KIND) :: c_newtype
+        integer(c_int) :: local_ierr
+        local_ierr = c_mpi_type_contiguous(count, datatype_f2c(oldtype), c_newtype)
+        newtype = datatype_c2f(c_newtype)
+        call set_ierror(local_ierr, "MPI_Type_contiguous", ierror)
+    end subroutine MPI_Type_contiguous_proc
+
+    subroutine MPI_Type_vector_proc(count, blocklength, stride, oldtype, newtype, ierror)
+        use mpi_c_bindings, only: c_mpi_type_vector
+        integer, intent(in) :: count, blocklength, stride, oldtype
+        integer, intent(out) :: newtype
+        integer, optional, intent(out) :: ierror
+        integer(kind=MPI_HANDLE_KIND) :: c_newtype
+        integer(c_int) :: local_ierr
+        local_ierr = c_mpi_type_vector(count, blocklength, stride, datatype_f2c(oldtype), &
+            c_newtype)
+        newtype = datatype_c2f(c_newtype)
+        call set_ierror(local_ierr, "MPI_Type_vector", ierror)
+    end subroutine MPI_Type_vector_proc
+
+    subroutine MPI_Type_commit_proc(datatype, ierror)
+        use mpi_c_bindings, only: c_mpi_type_commit
+        integer, intent(inout) :: datatype
+        integer, optional, intent(out) :: ierror
+        integer(kind=MPI_HANDLE_KIND) :: c_datatype
+        integer(c_int) :: local_ierr
+        c_datatype = datatype_f2c(datatype)
+        local_ierr = c_mpi_type_commit(c_datatype)
+        datatype = datatype_c2f(c_datatype)
+        call set_ierror(local_ierr, "MPI_Type_commit", ierror)
+    end subroutine MPI_Type_commit_proc
+
+    subroutine MPI_Type_free_proc(datatype, ierror)
+        use mpi_c_bindings, only: c_mpi_type_free
+        integer, intent(inout) :: datatype
+        integer, optional, intent(out) :: ierror
+        integer(kind=MPI_HANDLE_KIND) :: c_datatype
+        integer(c_int) :: local_ierr
+        c_datatype = datatype_f2c(datatype)
+        local_ierr = c_mpi_type_free(c_datatype)
+        datatype = datatype_c2f(c_datatype)
+        call set_ierror(local_ierr, "MPI_Type_free", ierror)
+    end subroutine MPI_Type_free_proc
 
     ! Errors
 

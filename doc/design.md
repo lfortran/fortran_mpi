@@ -56,7 +56,7 @@ to any Fortran compiler, with any MPI implementation.
    targets:
    - the size of a C handle: 8 bytes for the MPI-5 ABI (`-DMPI_ABI`) and Open
      MPI (`-DOPEN_MPI`), both pointers; 4 for MPICH (`int`);
-   - the names of the 9 functions that convert handles between C and
+   - the names of the 10 functions that convert handles between C and
      Fortran integers: `MPI_*_toint`/`MPI_*_fromint` in the ABI,
      `MPI_*_c2f`/`MPI_*_f2c` otherwise.
 
@@ -140,9 +140,10 @@ types. Both the conda-forge Open MPI and MPICH packages are.
 
 ### Handles that MPI creates
 
-Communicators, groups and requests that MPI creates are converted with the
-native `MPI_*_c2f`, and then shifted by `USER_HANDLE_OFFSET` = 4096. On the
-way back, the offset is subtracted and the result goes through `MPI_*_f2c`.
+Communicators, groups, requests and datatypes that MPI creates are converted
+with the native `MPI_*_c2f`, and then shifted by `USER_HANDLE_OFFSET` = 4096.
+On the way back, the offset is subtracted and the result goes through
+`MPI_*_f2c`.
 
 The offset is needed because the ABI reserves 1 .. 4095 for predefined
 handles, but native Fortran handles are not restricted to that. Open MPI's

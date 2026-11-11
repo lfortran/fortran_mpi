@@ -102,6 +102,12 @@ module mpi_c_bindings
             integer(kind=MPI_HANDLE_KIND) :: c_mpi_type_f2c
         end function c_mpi_type_f2c
 
+        function c_mpi_type_c2f(datatype_c) bind(C, name="MPI_Type"//C2F_SUFFIX)
+            use iso_c_binding, only: c_int
+            integer(kind=MPI_HANDLE_KIND), value :: datatype_c
+            integer(c_int) :: c_mpi_type_c2f
+        end function c_mpi_type_c2f
+
         function c_mpi_info_f2c(info_f) bind(C, name="MPI_Info"//F2C_SUFFIX)
             use iso_c_binding, only: c_int, c_ptr
             integer(c_int), value :: info_f
@@ -632,6 +638,35 @@ module mpi_c_bindings
             integer(c_int), intent(out) :: count
             integer(c_int) :: c_mpi_get_count
         end function c_mpi_get_count
+
+        function c_mpi_type_contiguous(count, oldtype, newtype) bind(C, name="MPI_Type_contiguous")
+            use iso_c_binding, only: c_int
+            integer(c_int), value :: count
+            integer(kind=MPI_HANDLE_KIND), value :: oldtype
+            integer(kind=MPI_HANDLE_KIND), intent(out) :: newtype
+            integer(c_int) :: c_mpi_type_contiguous
+        end function c_mpi_type_contiguous
+
+        function c_mpi_type_vector(count, blocklength, stride, oldtype, newtype) &
+            bind(C, name="MPI_Type_vector")
+            use iso_c_binding, only: c_int
+            integer(c_int), value :: count, blocklength, stride
+            integer(kind=MPI_HANDLE_KIND), value :: oldtype
+            integer(kind=MPI_HANDLE_KIND), intent(out) :: newtype
+            integer(c_int) :: c_mpi_type_vector
+        end function c_mpi_type_vector
+
+        function c_mpi_type_commit(datatype) bind(C, name="MPI_Type_commit")
+            use iso_c_binding, only: c_int
+            integer(kind=MPI_HANDLE_KIND), intent(inout) :: datatype
+            integer(c_int) :: c_mpi_type_commit
+        end function c_mpi_type_commit
+
+        function c_mpi_type_free(datatype) bind(C, name="MPI_Type_free")
+            use iso_c_binding, only: c_int
+            integer(kind=MPI_HANDLE_KIND), intent(inout) :: datatype
+            integer(c_int) :: c_mpi_type_free
+        end function c_mpi_type_free
 
     end interface
 end module mpi_c_bindings
