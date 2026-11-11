@@ -122,18 +122,15 @@ module mpi_c_bindings
 
         function c_mpi_init(argc, argv) bind(C, name="MPI_Init")
             use iso_c_binding, only : c_int, c_ptr
-            !> TODO: is the intent need to be explicitly specified
-            !> as 'intent(inout)'? Though, currently LFortran
-            !> errors with this
-            integer(c_int) :: argc
-            type(c_ptr) :: argv
+            integer(c_int), intent(inout) :: argc
+            type(c_ptr), intent(inout) :: argv
             integer(c_int) :: c_mpi_init
         end function c_mpi_init
 
         function c_mpi_init_thread(argc, argv, required, provided) bind(C, name="MPI_Init_thread")
             use iso_c_binding, only: c_int, c_ptr
-            integer(c_int) :: argc
-            type(c_ptr) :: argv
+            integer(c_int), intent(inout) :: argc
+            type(c_ptr), intent(inout) :: argv
             integer(c_int), value :: required
             integer(c_int), intent(out) :: provided
             integer(c_int) :: c_mpi_init_thread
