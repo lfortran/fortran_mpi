@@ -356,6 +356,30 @@ module mpi
         module procedure MPI_Type_get_name_proc
     end interface MPI_Type_get_name
 
+    interface MPI_Gather
+        module procedure MPI_Gather_proc
+    end interface MPI_Gather
+
+    interface MPI_Scatterv
+        module procedure MPI_Scatterv_proc
+    end interface MPI_Scatterv
+
+    interface MPI_Alltoall
+        module procedure MPI_Alltoall_proc
+    end interface MPI_Alltoall
+
+    interface MPI_Alltoallv
+        module procedure MPI_Alltoallv_proc
+    end interface MPI_Alltoallv
+
+    interface MPI_Scan
+        module procedure MPI_Scan_proc
+    end interface MPI_Scan
+
+    interface MPI_Reduce_scatter_block
+        module procedure MPI_Reduce_scatter_block_proc
+    end interface MPI_Reduce_scatter_block
+
     contains
 
     ! Translation between the ABI values of src/mpi.f90 and the native values
@@ -1230,6 +1254,78 @@ module mpi
                 comm_f2c(comm)), &
             "MPI_Scatter", ierror)
     end subroutine MPI_Scatter_proc
+
+    subroutine MPI_Gather_proc(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, &
+            root, comm, ierror)
+        use mpi_c_bindings, only: c_mpi_gather
+        type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
+        type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
+        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
+        integer, optional, intent(out) :: ierror
+        call set_ierror(c_mpi_gather(in_place_or(c_loc(sendbuf)), sendcount, &
+            datatype_f2c(sendtype), c_loc(recvbuf), recvcount, datatype_f2c(recvtype), &
+            rank_f2c(root), comm_f2c(comm)), "MPI_Gather", ierror)
+    end subroutine MPI_Gather_proc
+
+    subroutine MPI_Scatterv_proc(sendbuf, sendcounts, displs, sendtype, recvbuf, recvcount, &
+            recvtype, root, comm, ierror)
+        use mpi_c_bindings, only: c_mpi_scatterv
+        type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
+        type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
+        integer, intent(in) :: sendcounts(*), displs(*)
+        integer, intent(in) :: sendtype, recvcount, recvtype, root, comm
+        integer, optional, intent(out) :: ierror
+        call set_ierror(c_mpi_scatterv(c_loc(sendbuf), sendcounts, displs, &
+            datatype_f2c(sendtype), in_place_or(c_loc(recvbuf)), recvcount, &
+            datatype_f2c(recvtype), rank_f2c(root), comm_f2c(comm)), "MPI_Scatterv", ierror)
+    end subroutine MPI_Scatterv_proc
+
+    subroutine MPI_Alltoall_proc(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, &
+            comm, ierror)
+        use mpi_c_bindings, only: c_mpi_alltoall
+        type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
+        type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
+        integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, comm
+        integer, optional, intent(out) :: ierror
+        call set_ierror(c_mpi_alltoall(in_place_or(c_loc(sendbuf)), sendcount, &
+            datatype_f2c(sendtype), c_loc(recvbuf), recvcount, datatype_f2c(recvtype), &
+            comm_f2c(comm)), "MPI_Alltoall", ierror)
+    end subroutine MPI_Alltoall_proc
+
+    subroutine MPI_Alltoallv_proc(sendbuf, sendcounts, sdispls, sendtype, recvbuf, recvcounts, &
+            rdispls, recvtype, comm, ierror)
+        use mpi_c_bindings, only: c_mpi_alltoallv
+        type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
+        type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
+        integer, intent(in) :: sendcounts(*), sdispls(*), recvcounts(*), rdispls(*)
+        integer, intent(in) :: sendtype, recvtype, comm
+        integer, optional, intent(out) :: ierror
+        call set_ierror(c_mpi_alltoallv(in_place_or(c_loc(sendbuf)), sendcounts, sdispls, &
+            datatype_f2c(sendtype), c_loc(recvbuf), recvcounts, rdispls, &
+            datatype_f2c(recvtype), comm_f2c(comm)), "MPI_Alltoallv", ierror)
+    end subroutine MPI_Alltoallv_proc
+
+    subroutine MPI_Scan_proc(sendbuf, recvbuf, count, datatype, op, comm, ierror)
+        use mpi_c_bindings, only: c_mpi_scan
+        type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
+        type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
+        integer, intent(in) :: count, datatype, op, comm
+        integer, optional, intent(out) :: ierror
+        call set_ierror(c_mpi_scan(in_place_or(c_loc(sendbuf)), c_loc(recvbuf), count, &
+            datatype_f2c(datatype), op_f2c(op), comm_f2c(comm)), "MPI_Scan", ierror)
+    end subroutine MPI_Scan_proc
+
+    subroutine MPI_Reduce_scatter_block_proc(sendbuf, recvbuf, recvcount, datatype, op, comm, &
+            ierror)
+        use mpi_c_bindings, only: c_mpi_reduce_scatter_block
+        type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
+        type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
+        integer, intent(in) :: recvcount, datatype, op, comm
+        integer, optional, intent(out) :: ierror
+        call set_ierror(c_mpi_reduce_scatter_block(in_place_or(c_loc(sendbuf)), c_loc(recvbuf), &
+            recvcount, datatype_f2c(datatype), op_f2c(op), comm_f2c(comm)), &
+            "MPI_Reduce_scatter_block", ierror)
+    end subroutine MPI_Reduce_scatter_block_proc
 
     ! Errors
 

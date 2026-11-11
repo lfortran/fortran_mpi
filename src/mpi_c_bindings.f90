@@ -505,5 +505,82 @@ module mpi_c_bindings
             integer(c_int) :: c_mpi_error_string
         end function c_mpi_error_string
 
+        function c_mpi_gather(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
+                              recvtype, root, comm) bind(C, name="MPI_Gather")
+            use iso_c_binding, only: c_int, c_ptr
+            type(c_ptr), value :: sendbuf
+            integer(c_int), value :: sendcount
+            integer(kind=MPI_HANDLE_KIND), value :: sendtype
+            type(c_ptr), value :: recvbuf
+            integer(c_int), value :: recvcount
+            integer(kind=MPI_HANDLE_KIND), value :: recvtype
+            integer(c_int), value :: root
+            integer(kind=MPI_HANDLE_KIND), value :: comm
+            integer(c_int) :: c_mpi_gather
+        end function c_mpi_gather
+
+        function c_mpi_scatterv(sendbuf, sendcounts, displs, sendtype, recvbuf, &
+                                recvcount, recvtype, root, comm) bind(C, name="MPI_Scatterv")
+            use iso_c_binding, only: c_int, c_ptr
+            type(c_ptr), value :: sendbuf
+            integer(c_int), dimension(*), intent(in) :: sendcounts
+            integer(c_int), dimension(*), intent(in) :: displs
+            integer(kind=MPI_HANDLE_KIND), value :: sendtype
+            type(c_ptr), value :: recvbuf
+            integer(c_int), value :: recvcount
+            integer(kind=MPI_HANDLE_KIND), value :: recvtype
+            integer(c_int), value :: root
+            integer(kind=MPI_HANDLE_KIND), value :: comm
+            integer(c_int) :: c_mpi_scatterv
+        end function c_mpi_scatterv
+
+        function c_mpi_alltoall(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
+                                recvtype, comm) bind(C, name="MPI_Alltoall")
+            use iso_c_binding, only: c_int, c_ptr
+            type(c_ptr), value :: sendbuf
+            integer(c_int), value :: sendcount
+            integer(kind=MPI_HANDLE_KIND), value :: sendtype
+            type(c_ptr), value :: recvbuf
+            integer(c_int), value :: recvcount
+            integer(kind=MPI_HANDLE_KIND), value :: recvtype
+            integer(kind=MPI_HANDLE_KIND), value :: comm
+            integer(c_int) :: c_mpi_alltoall
+        end function c_mpi_alltoall
+
+        function c_mpi_alltoallv(sendbuf, sendcounts, sdispls, sendtype, recvbuf, &
+                                 recvcounts, rdispls, recvtype, comm) bind(C, name="MPI_Alltoallv")
+            use iso_c_binding, only: c_int, c_ptr
+            type(c_ptr), value :: sendbuf
+            integer(c_int), dimension(*), intent(in) :: sendcounts
+            integer(c_int), dimension(*), intent(in) :: sdispls
+            integer(kind=MPI_HANDLE_KIND), value :: sendtype
+            type(c_ptr), value :: recvbuf
+            integer(c_int), dimension(*), intent(in) :: recvcounts
+            integer(c_int), dimension(*), intent(in) :: rdispls
+            integer(kind=MPI_HANDLE_KIND), value :: recvtype
+            integer(kind=MPI_HANDLE_KIND), value :: comm
+            integer(c_int) :: c_mpi_alltoallv
+        end function c_mpi_alltoallv
+
+        function c_mpi_scan(sendbuf, recvbuf, count, datatype, op, comm) &
+            bind(C, name="MPI_Scan")
+            use iso_c_binding, only: c_int, c_ptr
+            type(c_ptr), value :: sendbuf
+            type(c_ptr), value :: recvbuf
+            integer(c_int), value :: count
+            integer(kind=MPI_HANDLE_KIND), value :: datatype, op, comm
+            integer(c_int) :: c_mpi_scan
+        end function c_mpi_scan
+
+        function c_mpi_reduce_scatter_block(sendbuf, recvbuf, recvcount, datatype, op, comm) &
+            bind(C, name="MPI_Reduce_scatter_block")
+            use iso_c_binding, only: c_int, c_ptr
+            type(c_ptr), value :: sendbuf
+            type(c_ptr), value :: recvbuf
+            integer(c_int), value :: recvcount
+            integer(kind=MPI_HANDLE_KIND), value :: datatype, op, comm
+            integer(c_int) :: c_mpi_reduce_scatter_block
+        end function c_mpi_reduce_scatter_block
+
     end interface
 end module mpi_c_bindings
