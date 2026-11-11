@@ -6,6 +6,7 @@ program cart_sub
     integer :: rank, size, ierr, tcheck
     integer :: comm_cart, comm_new
     integer :: dims(2), coords(2)
+    integer :: sub_rank, sub_size, sub_coords(1)
     logical :: periods(2), reorder, remain_dims(2)
     integer :: errs
 
@@ -47,6 +48,10 @@ program cart_sub
         print *, "Error creating dimensions"
         error stop
     end if
+    if (dims(1) * dims(2) /= size .or. dims(1) < dims(2)) then
+        print *, "MPI_Dims_create(", size, ") gave dims =", dims
+        error stop "wrong dims from MPI_Dims_create"
+    end if
 
     ! Create a Cartesian communicator
     call MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, reorder, comm_cart, ierr)
@@ -57,9 +62,16 @@ program cart_sub
 
     ! Get new rank in the Cartesian communicator
     call MPI_Comm_rank(comm_cart, rank, ierr)
+    if (ierr /= MPI_SUCCESS) error stop "MPI_Comm_rank(comm_cart) failed"
 
     ! Get the Cartesian coordinates of the current rank
     call MPI_Cart_coords(comm_cart, rank, 2, coords, ierr)
+    if (ierr /= MPI_SUCCESS) error stop "MPI_Cart_coords failed"
+    ! Ranks are numbered in row-major order
+    if (coords(1) /= rank / dims(2) .or. coords(2) /= mod(rank, dims(2))) then
+        print *, "Rank", rank, "has coords", coords, "in a", dims, "grid"
+        error stop "wrong coordinates from MPI_Cart_coords"
+    end if
 
     ! Print rank details
     print *, "Global Rank:", rank, "Cartesian Coordinates:", coords
@@ -72,10 +84,29 @@ program cart_sub
     end if
 
     ! Get the size of the new communicator
-    call MPI_Comm_size(comm_new, size, ierr)
-    
+    call MPI_Comm_size(comm_new, sub_size, ierr)
+    if (ierr /= MPI_SUCCESS) error stop "MPI_Comm_size(comm_new) failed"
+    call MPI_Comm_rank(comm_new, sub_rank, ierr)
+    if (ierr /= MPI_SUCCESS) error stop "MPI_Comm_rank(comm_new) failed"
+
     ! Print the new communicator details
-    print *, "New communicator rank:", rank, "New communicator size:", size
+    print *, "New communicator rank:", sub_rank, "New communicator size:", sub_size
+
+    ! The sub-communicator is the row of ranks with the same second coordinate
+    if (sub_size /= dims(1)) then
+        print *, "Rank", rank, ": sub-communicator size", sub_size, "expected", dims(1)
+        error stop "wrong size of the MPI_Cart_sub communicator"
+    end if
+    if (sub_rank /= coords(1)) then
+        print *, "Rank", rank, ": sub-communicator rank", sub_rank, "expected", coords(1)
+        error stop "wrong rank in the MPI_Cart_sub communicator"
+    end if
+    call MPI_Cart_coords(comm_new, sub_rank, 1, sub_coords, ierr)
+    if (ierr /= MPI_SUCCESS) error stop "MPI_Cart_coords(comm_new) failed"
+    if (sub_coords(1) /= coords(1)) then
+        print *, "Rank", rank, ": sub-communicator coords", sub_coords, "expected", coords(1)
+        error stop "wrong coordinates in the MPI_Cart_sub communicator"
+    end if
 
     ! Finalize MPI
     call MPI_Finalize(errs)

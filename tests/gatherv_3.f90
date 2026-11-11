@@ -2,7 +2,7 @@ program gatherv_3
   use mpi
   implicit none
 
-  integer :: rank, nprocs, ierr
+  integer :: rank, nprocs, ierr, i
   integer :: local_data(3)
   integer, allocatable :: gathered_data(:)
   integer, allocatable :: counts(:), displacements(:)
@@ -18,10 +18,25 @@ program gatherv_3
 
   call gatherIntegers(local_data, gathered_data, counts, displacements, rank, nprocs, MPI_COMM_WORLD)
 
+  ! Rank r sent 3*r+1 .. 3*r+3, so the root has 1 .. 3*nprocs in order
+  if (rank == 0) then
+    if (size(gathered_data) /= 3*nprocs) error stop "wrong size of gathered_data"
+    do i = 1, 3*nprocs
+      if (gathered_data(i) /= i) then
+        print *, "gathered_data(", i, ") =", gathered_data(i), "expected", i
+        error stop "MPI_GatherV gathered wrong data"
+      end if
+    end do
+    print *, "MPI_GatherV test passed:", gathered_data
+  end if
+  if (any(counts /= 3)) error stop "wrong counts"
+  if (any(displacements /= [(3*i, i = 0, nprocs - 1)])) error stop "wrong displacements"
+
   deallocate(counts, displacements)
   if (rank == 0) deallocate(gathered_data)
 
   call MPI_FINALIZE(ierr)
+  if (ierr /= MPI_SUCCESS) error stop "MPI_FINALIZE failed"
 
 contains
 
@@ -54,6 +69,7 @@ contains
     call MPI_GatherV(local_data, local_size, MPI_INTEGER, &
                      gathered_data, counts, displacements, MPI_INTEGER, &
                      0, comm, ierr)
+    if (ierr /= MPI_SUCCESS) error stop "MPI_GatherV failed"
 
   end subroutine gatherIntegers
 
