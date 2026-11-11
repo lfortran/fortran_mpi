@@ -33,6 +33,7 @@ program allreduce_1
             vout(i) = -1
         end do
         call mpi_allreduce( vin, vout, count, MPI_REAL8, MPI_SUM, comm, ierr )
+        if (ierr /= MPI_SUCCESS) error stop "mpi_allreduce failed"
     !         Check that all results are correct
         do i=1, count
             if (vout(i) /= i * size) then
@@ -44,5 +45,7 @@ program allreduce_1
     end do
 
     print *, "Allreduce test completed with ", errs, " errors."
-    call mpi_finalize(errs)
+    if (errs /= 0) error stop "mpi_allreduce gave wrong sums"
+    call mpi_finalize(ierr)
+    if (ierr /= MPI_SUCCESS) error stop "mpi_finalize failed"
 end program allreduce_1
