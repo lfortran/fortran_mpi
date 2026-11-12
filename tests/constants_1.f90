@@ -17,6 +17,8 @@ program constants_1
     call check_type(MPI_INT, "MPI_INT")
     call check_type(MPI_FLOAT, "MPI_FLOAT")
     call check_type(MPI_DOUBLE, "MPI_DOUBLE")
+    call check_type(MPI_INT32_T, "MPI_INT32_T")
+    call check_type(MPI_INT64_T, "MPI_INT64_T")
 
     call check_comm(MPI_COMM_WORLD, "MPI_COMM_WORLD")
     call check_comm(MPI_COMM_SELF, "MPI_COMM_SELF")

@@ -159,6 +159,8 @@ module mpi
     integer, parameter :: MPI_DOUBLE_PRECISION = 540 ! 0x21c
     integer, parameter :: MPI_DOUBLE_COMPLEX = 541   ! 0x21d
     integer, parameter :: MPI_CHARACTER = 542        ! 0x21e
+    integer, parameter :: MPI_INT32_T = 592          ! 0x250
+    integer, parameter :: MPI_INT64_T = 600          ! 0x258
     integer, parameter :: MPI_REAL4 = 722            ! 0x2d2
     integer, parameter :: MPI_INTEGER8 = 729         ! 0x2d9
     integer, parameter :: MPI_REAL8 = 730            ! 0x2da
