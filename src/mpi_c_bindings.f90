@@ -52,6 +52,12 @@ module mpi_c_bindings
 
     integer(c_int), bind(C, name="c_MPI_MAX_OBJECT_NAME") :: c_mpi_max_object_name
     integer(c_int), bind(C, name="c_MPI_MAX_ERROR_STRING") :: c_mpi_max_error_string
+    integer(c_int), bind(C, name="c_MPI_MAX_PROCESSOR_NAME") :: c_mpi_max_processor_name
+
+    integer(c_int), bind(C, name="c_MPI_IDENT") :: c_mpi_ident
+    integer(c_int), bind(C, name="c_MPI_CONGRUENT") :: c_mpi_congruent
+    integer(c_int), bind(C, name="c_MPI_SIMILAR") :: c_mpi_similar
+    integer(c_int), bind(C, name="c_MPI_UNEQUAL") :: c_mpi_unequal
 
     type(c_ptr), bind(C, name="c_MPI_IN_PLACE") :: c_mpi_in_place
     type(c_ptr), bind(C, name="c_MPI_STATUS_IGNORE") :: c_mpi_status_ignore
@@ -101,6 +107,12 @@ module mpi_c_bindings
             integer(c_int), value :: datatype_f
             integer(kind=MPI_HANDLE_KIND) :: c_mpi_type_f2c
         end function c_mpi_type_f2c
+
+        function c_mpi_type_c2f(datatype_c) bind(C, name="MPI_Type"//C2F_SUFFIX)
+            use iso_c_binding, only: c_int
+            integer(kind=MPI_HANDLE_KIND), value :: datatype_c
+            integer(c_int) :: c_mpi_type_c2f
+        end function c_mpi_type_c2f
 
         function c_mpi_info_f2c(info_f) bind(C, name="MPI_Info"//F2C_SUFFIX)
             use iso_c_binding, only: c_int, c_ptr
@@ -504,6 +516,188 @@ module mpi_c_bindings
             integer(c_int), intent(out) :: resultlen
             integer(c_int) :: c_mpi_error_string
         end function c_mpi_error_string
+
+        function c_mpi_gather(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
+                              recvtype, root, comm) bind(C, name="MPI_Gather")
+            use iso_c_binding, only: c_int, c_ptr
+            type(c_ptr), value :: sendbuf
+            integer(c_int), value :: sendcount
+            integer(kind=MPI_HANDLE_KIND), value :: sendtype
+            type(c_ptr), value :: recvbuf
+            integer(c_int), value :: recvcount
+            integer(kind=MPI_HANDLE_KIND), value :: recvtype
+            integer(c_int), value :: root
+            integer(kind=MPI_HANDLE_KIND), value :: comm
+            integer(c_int) :: c_mpi_gather
+        end function c_mpi_gather
+
+        function c_mpi_scatterv(sendbuf, sendcounts, displs, sendtype, recvbuf, &
+                                recvcount, recvtype, root, comm) bind(C, name="MPI_Scatterv")
+            use iso_c_binding, only: c_int, c_ptr
+            type(c_ptr), value :: sendbuf
+            integer(c_int), dimension(*), intent(in) :: sendcounts
+            integer(c_int), dimension(*), intent(in) :: displs
+            integer(kind=MPI_HANDLE_KIND), value :: sendtype
+            type(c_ptr), value :: recvbuf
+            integer(c_int), value :: recvcount
+            integer(kind=MPI_HANDLE_KIND), value :: recvtype
+            integer(c_int), value :: root
+            integer(kind=MPI_HANDLE_KIND), value :: comm
+            integer(c_int) :: c_mpi_scatterv
+        end function c_mpi_scatterv
+
+        function c_mpi_alltoall(sendbuf, sendcount, sendtype, recvbuf, recvcount, &
+                                recvtype, comm) bind(C, name="MPI_Alltoall")
+            use iso_c_binding, only: c_int, c_ptr
+            type(c_ptr), value :: sendbuf
+            integer(c_int), value :: sendcount
+            integer(kind=MPI_HANDLE_KIND), value :: sendtype
+            type(c_ptr), value :: recvbuf
+            integer(c_int), value :: recvcount
+            integer(kind=MPI_HANDLE_KIND), value :: recvtype
+            integer(kind=MPI_HANDLE_KIND), value :: comm
+            integer(c_int) :: c_mpi_alltoall
+        end function c_mpi_alltoall
+
+        function c_mpi_alltoallv(sendbuf, sendcounts, sdispls, sendtype, recvbuf, &
+                                 recvcounts, rdispls, recvtype, comm) bind(C, name="MPI_Alltoallv")
+            use iso_c_binding, only: c_int, c_ptr
+            type(c_ptr), value :: sendbuf
+            integer(c_int), dimension(*), intent(in) :: sendcounts
+            integer(c_int), dimension(*), intent(in) :: sdispls
+            integer(kind=MPI_HANDLE_KIND), value :: sendtype
+            type(c_ptr), value :: recvbuf
+            integer(c_int), dimension(*), intent(in) :: recvcounts
+            integer(c_int), dimension(*), intent(in) :: rdispls
+            integer(kind=MPI_HANDLE_KIND), value :: recvtype
+            integer(kind=MPI_HANDLE_KIND), value :: comm
+            integer(c_int) :: c_mpi_alltoallv
+        end function c_mpi_alltoallv
+
+        function c_mpi_scan(sendbuf, recvbuf, count, datatype, op, comm) &
+            bind(C, name="MPI_Scan")
+            use iso_c_binding, only: c_int, c_ptr
+            type(c_ptr), value :: sendbuf
+            type(c_ptr), value :: recvbuf
+            integer(c_int), value :: count
+            integer(kind=MPI_HANDLE_KIND), value :: datatype, op, comm
+            integer(c_int) :: c_mpi_scan
+        end function c_mpi_scan
+
+        function c_mpi_reduce_scatter_block(sendbuf, recvbuf, recvcount, datatype, op, comm) &
+            bind(C, name="MPI_Reduce_scatter_block")
+            use iso_c_binding, only: c_int, c_ptr
+            type(c_ptr), value :: sendbuf
+            type(c_ptr), value :: recvbuf
+            integer(c_int), value :: recvcount
+            integer(kind=MPI_HANDLE_KIND), value :: datatype, op, comm
+            integer(c_int) :: c_mpi_reduce_scatter_block
+        end function c_mpi_reduce_scatter_block
+
+        function c_mpi_test(request, flag, status) bind(C, name="MPI_Test")
+            use iso_c_binding, only: c_int, c_ptr
+            integer(kind=MPI_HANDLE_KIND), intent(inout) :: request
+            integer(c_int), intent(out) :: flag
+            type(c_ptr), value :: status
+            integer(c_int) :: c_mpi_test
+        end function c_mpi_test
+
+        function c_mpi_testall(count, requests, flag, statuses) bind(C, name="MPI_Testall")
+            use iso_c_binding, only: c_int, c_ptr
+            integer(c_int), value :: count
+            integer(kind=MPI_HANDLE_KIND), dimension(*), intent(inout) :: requests
+            integer(c_int), intent(out) :: flag
+            type(c_ptr), value :: statuses
+            integer(c_int) :: c_mpi_testall
+        end function c_mpi_testall
+
+        function c_mpi_waitany(count, requests, index, status) bind(C, name="MPI_Waitany")
+            use iso_c_binding, only: c_int, c_ptr
+            integer(c_int), value :: count
+            integer(kind=MPI_HANDLE_KIND), dimension(*), intent(inout) :: requests
+            integer(c_int), intent(out) :: index
+            type(c_ptr), value :: status
+            integer(c_int) :: c_mpi_waitany
+        end function c_mpi_waitany
+
+        function c_mpi_probe(source, tag, comm, status) bind(C, name="MPI_Probe")
+            use iso_c_binding, only: c_int, c_ptr
+            integer(c_int), value :: source, tag
+            integer(kind=MPI_HANDLE_KIND), value :: comm
+            type(c_ptr), value :: status
+            integer(c_int) :: c_mpi_probe
+        end function c_mpi_probe
+
+        function c_mpi_iprobe(source, tag, comm, flag, status) bind(C, name="MPI_Iprobe")
+            use iso_c_binding, only: c_int, c_ptr
+            integer(c_int), value :: source, tag
+            integer(kind=MPI_HANDLE_KIND), value :: comm
+            integer(c_int), intent(out) :: flag
+            type(c_ptr), value :: status
+            integer(c_int) :: c_mpi_iprobe
+        end function c_mpi_iprobe
+
+        function c_mpi_get_count(status, datatype, count) bind(C, name="MPI_Get_count")
+            use iso_c_binding, only: c_int, c_ptr
+            type(c_ptr), value :: status
+            integer(kind=MPI_HANDLE_KIND), value :: datatype
+            integer(c_int), intent(out) :: count
+            integer(c_int) :: c_mpi_get_count
+        end function c_mpi_get_count
+
+        function c_mpi_type_contiguous(count, oldtype, newtype) bind(C, name="MPI_Type_contiguous")
+            use iso_c_binding, only: c_int
+            integer(c_int), value :: count
+            integer(kind=MPI_HANDLE_KIND), value :: oldtype
+            integer(kind=MPI_HANDLE_KIND), intent(out) :: newtype
+            integer(c_int) :: c_mpi_type_contiguous
+        end function c_mpi_type_contiguous
+
+        function c_mpi_type_vector(count, blocklength, stride, oldtype, newtype) &
+            bind(C, name="MPI_Type_vector")
+            use iso_c_binding, only: c_int
+            integer(c_int), value :: count, blocklength, stride
+            integer(kind=MPI_HANDLE_KIND), value :: oldtype
+            integer(kind=MPI_HANDLE_KIND), intent(out) :: newtype
+            integer(c_int) :: c_mpi_type_vector
+        end function c_mpi_type_vector
+
+        function c_mpi_type_commit(datatype) bind(C, name="MPI_Type_commit")
+            use iso_c_binding, only: c_int
+            integer(kind=MPI_HANDLE_KIND), intent(inout) :: datatype
+            integer(c_int) :: c_mpi_type_commit
+        end function c_mpi_type_commit
+
+        function c_mpi_type_free(datatype) bind(C, name="MPI_Type_free")
+            use iso_c_binding, only: c_int
+            integer(kind=MPI_HANDLE_KIND), intent(inout) :: datatype
+            integer(c_int) :: c_mpi_type_free
+        end function c_mpi_type_free
+
+        function c_mpi_finalized(flag) bind(C, name="MPI_Finalized")
+            use iso_c_binding, only: c_int
+            integer(c_int), intent(out) :: flag
+            integer(c_int) :: c_mpi_finalized
+        end function c_mpi_finalized
+
+        function c_mpi_wtick() result(tick) bind(C, name="MPI_Wtick")
+            use iso_c_binding, only: c_double
+            real(c_double) :: tick
+        end function c_mpi_wtick
+
+        function c_mpi_get_processor_name(name, resultlen) bind(C, name="MPI_Get_processor_name")
+            use iso_c_binding, only: c_int, c_char
+            character(kind=c_char), intent(out) :: name(*)
+            integer(c_int), intent(out) :: resultlen
+            integer(c_int) :: c_mpi_get_processor_name
+        end function c_mpi_get_processor_name
+
+        function c_mpi_comm_compare(comm1, comm2, result) bind(C, name="MPI_Comm_compare")
+            use iso_c_binding, only: c_int
+            integer(kind=MPI_HANDLE_KIND), value :: comm1, comm2
+            integer(c_int), intent(out) :: result
+            integer(c_int) :: c_mpi_comm_compare
+        end function c_mpi_comm_compare
 
     end interface
 end module mpi_c_bindings

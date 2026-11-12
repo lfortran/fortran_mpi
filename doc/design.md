@@ -56,7 +56,7 @@ to any Fortran compiler, with any MPI implementation.
    targets:
    - the size of a C handle: 8 bytes for the MPI-5 ABI (`-DMPI_ABI`) and Open
      MPI (`-DOPEN_MPI`), both pointers; 4 for MPICH (`int`);
-   - the names of the 9 functions that convert handles between C and
+   - the names of the 10 functions that convert handles between C and
      Fortran integers: `MPI_*_toint`/`MPI_*_fromint` in the ABI,
      `MPI_*_c2f`/`MPI_*_f2c` otherwise.
 
@@ -140,9 +140,10 @@ types. Both the conda-forge Open MPI and MPICH packages are.
 
 ### Handles that MPI creates
 
-Communicators, groups and requests that MPI creates are converted with the
-native `MPI_*_c2f`, and then shifted by `USER_HANDLE_OFFSET` = 4096. On the
-way back, the offset is subtracted and the result goes through `MPI_*_f2c`.
+Communicators, groups, requests and datatypes that MPI creates are converted
+with the native `MPI_*_c2f`, and then shifted by `USER_HANDLE_OFFSET` = 4096.
+On the way back, the offset is subtracted and the result goes through
+`MPI_*_f2c`.
 
 The offset is needed because the ABI reserves 1 .. 4095 for predefined
 handles, but native Fortran handles are not restricted to that. Open MPI's
@@ -156,9 +157,10 @@ handle still lands in 1 .. 4095.
 ### Special integers
 
 These include the wildcards and special ranks (`MPI_ANY_SOURCE`,
-`MPI_ANY_TAG`, `MPI_PROC_NULL`, `MPI_ROOT`, `MPI_UNDEFINED`), the thread levels
-and `MPI_COMM_TYPE_SHARED`. MPI passes them as plain integers, and every
-implementation has its own values:
+`MPI_ANY_TAG`, `MPI_PROC_NULL`, `MPI_ROOT`, `MPI_UNDEFINED`), the thread levels,
+`MPI_COMM_TYPE_SHARED` and the results of `MPI_Comm_compare` (`MPI_IDENT`,
+...). MPI passes them as plain integers, and every implementation has its own
+values:
 
 | constant | ABI | Open MPI | MPICH |
 |---|---|---|---|
@@ -166,13 +168,19 @@ implementation has its own values:
 | `MPI_PROC_NULL` | −3 | −2 | −1 |
 | `MPI_THREAD_FUNNELED` | 1024 | 1 | 1 |
 | `MPI_COMM_TYPE_SHARED` | 221 | 0 | 1 |
+| `MPI_IDENT` | 201 | 0 | 0 |
 
 `src/mpi_constants.c` exports the native values (`c_MPI_PROC_NULL`, ...):
 
 - `rank_f2c` and `rank_c2f` translate ranks. Valid ranks are never negative
   and all special ranks are, so the common case costs one comparison.
-- `tag_f2c`, `thread_level_f2c`/`thread_level_c2f` and `split_type_f2c`
-  translate tags, thread levels and split types.
+- `tag_f2c`/`tag_c2f`, `thread_level_f2c`/`thread_level_c2f` and
+  `split_type_f2c` translate tags, thread levels and split types.
+- `comparison_c2f` translates the result of `MPI_Comm_compare`.
+- `count_c2f` translates a count that MPI returns, which may be
+  `MPI_UNDEFINED` (`MPI_Get_count`). `index_c2f` translates an index into an
+  array of requests (`MPI_Waitany`): it may be `MPI_UNDEFINED`, and otherwise
+  it counts from 0 in C and from 1 in Fortran.
 
 Every rank or tag that a wrapper passes to C goes through `rank_f2c` or
 `tag_f2c`. Every rank that comes back goes through `rank_c2f`: for example the
@@ -192,13 +200,16 @@ The Fortran status has the ABI layout: `MPI_STATUS_SIZE` = 8 integers.
   `MPI_STATUS_SIZE` C ints.
 - `status_c2f` copies it into the Fortran status. It finds the three public
   fields using `offsetof`, which `src/mpi_constants.c` exports, and translates
-  the source with `rank_c2f`.
+  the source with `rank_c2f` and the tag with `tag_c2f`. The tag is special
+  in an empty status, such as `MPI_Test` returns for `MPI_REQUEST_NULL`:
+  `MPI_ANY_TAG`.
+- `status_f2c` is the inverse, for `MPI_Get_count`, which takes a status.
 - The native `MPI_Status` is 20 bytes in MPICH and 24 in Open MPI. Both fit.
 
 We do not use the native `MPI_Status_c2f`. It writes the native Fortran
 layout: 6 integers for Open MPI, and no rank translation.
 
-`MPI_Waitall` receives the native statuses into one array, each
+`MPI_Waitall` and `MPI_Testall` receive the native statuses into one array, each
 `sizeof(MPI_Status)` bytes, and converts them one by one.
 
 ### `MPI_IN_PLACE`, `MPI_STATUS_IGNORE` and `MPI_STATUSES_IGNORE`
@@ -255,8 +266,8 @@ program with an explanation in two cases:
   `src/mpi_c_bindings.f90` was compiled without `-DOPEN_MPI` for Open MPI, or
   without `-DMPI_ABI` for `libmpi_abi`.
   Without this check, handles would be silently truncated.
-- The native `MPI_Status`, `MPI_MAX_OBJECT_NAME` or `MPI_MAX_ERROR_STRING`
-  does not fit the ABI sizes.
+- The native `MPI_Status`, `MPI_MAX_OBJECT_NAME`, `MPI_MAX_ERROR_STRING` or
+  `MPI_MAX_PROCESSOR_NAME` does not fit the ABI sizes.
 
 ### Adding a constant
 
