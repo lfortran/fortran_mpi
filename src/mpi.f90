@@ -188,262 +188,6 @@ module mpi
     private :: in_place_or
     private :: c_int, c_char, c_ptr, c_loc, c_null_ptr, c_associated
 
-    interface MPI_Init
-        module procedure MPI_Init_proc
-    end interface MPI_Init
-
-    interface MPI_Init_thread
-        module procedure MPI_Init_thread_proc
-    end interface MPI_Init_thread
-
-    interface MPI_Abort
-        module procedure MPI_Abort_proc
-    end interface MPI_Abort
-
-    interface MPI_Finalize
-        module procedure MPI_Finalize_proc
-    end interface MPI_Finalize
-
-    interface MPI_Initialized
-        module procedure MPI_Initialized_proc
-    end interface MPI_Initialized
-
-    interface MPI_Comm_size
-        module procedure MPI_Comm_size_proc
-    end interface MPI_Comm_size
-
-    interface MPI_Comm_Group
-        module procedure MPI_Comm_Group_proc
-    end interface MPI_Comm_Group
-
-    interface MPI_Comm_create
-        module procedure MPI_Comm_create_proc
-    end interface MPI_Comm_create
-
-    interface MPI_Group_free
-        module procedure MPI_Group_free_proc
-    end interface MPI_Group_free
-
-    interface MPI_Group_size
-        module procedure MPI_Group_size_proc
-    end interface MPI_Group_size
-
-    interface MPI_Group_range_incl
-        module procedure MPI_Group_range_incl_proc
-    end interface MPI_Group_range_incl
-
-    interface MPI_Comm_dup
-        module procedure MPI_Comm_dup_proc
-    end interface MPI_Comm_dup
-
-    interface MPi_Comm_free
-        module procedure MPI_Comm_free_proc
-    end interface MPI_Comm_free
-
-    interface MPI_Bcast
-        module procedure MPI_Bcast_proc
-    end interface MPI_Bcast
-
-    interface MPI_Allgather
-        module procedure MPI_Allgather_proc
-    end interface MPI_Allgather
-
-    interface MPI_Isend
-        module procedure MPI_Isend_proc
-    end interface
-
-    interface MPI_Irecv
-        module procedure MPI_Irecv_proc
-    end interface
-
-    interface MPI_Allreduce
-        module procedure MPI_Allreduce_proc
-    end interface MPI_Allreduce
-
-    interface MPI_Gatherv
-        module procedure MPI_Gatherv_proc
-    end interface MPI_Gatherv
-
-    interface MPI_Wtime
-        module procedure MPI_Wtime_proc
-    end interface
-
-    interface MPI_Barrier
-        module procedure MPI_Barrier_proc
-    end interface
-
-    interface MPI_Comm_rank
-        module procedure MPI_Comm_rank_proc
-    end interface
-
-    interface MPI_Comm_split
-        module procedure MPI_Comm_split_proc
-    end interface MPI_Comm_split
-
-    interface MPI_Comm_split_type
-        module procedure MPI_Comm_split_type_proc
-    end interface
-
-    interface MPI_Recv
-        module procedure MPI_Recv_proc
-    end interface
-
-    interface MPI_Send
-        module procedure MPI_Send_proc
-    end interface
-
-    interface MPI_Sendrecv
-        module procedure MPI_Sendrecv_proc
-    end interface
-
-    interface MPI_Wait
-        module procedure MPI_Wait_proc
-    end interface
-
-    interface MPI_Waitall
-        module procedure MPI_Waitall_proc
-    end interface
-
-    interface MPI_Allgatherv
-        module procedure MPI_Allgatherv_proc
-    end interface MPI_Allgatherv
-
-    interface MPI_Scatter
-        module procedure MPI_Scatter_proc
-    end interface MPI_Scatter
-
-    interface MPI_Ssend
-        module procedure MPI_Ssend_proc
-    end interface
-
-    interface MPI_Cart_create
-        module procedure MPI_Cart_create_proc
-    end interface
-
-    interface MPI_Cart_sub
-        module procedure MPI_Cart_sub_proc
-    end interface
-
-    interface MPI_Cart_shift
-        module procedure MPI_Cart_shift_proc
-    end interface
-
-    interface MPI_Dims_create
-        module procedure MPI_Dims_create_proc
-    end interface
-
-    interface MPI_Cart_coords
-        module procedure MPI_Cart_coords_proc
-    end interface
-
-    interface MPI_Reduce
-        module procedure MPI_Reduce_proc
-    end interface MPI_Reduce
-
-    interface MPI_Exscan
-        module procedure MPI_Exscan_proc
-    end interface MPI_Exscan
-
-    interface MPI_Comm_set_errhandler
-        module procedure MPI_Comm_set_errhandler_proc
-    end interface MPI_Comm_set_errhandler
-
-    interface MPI_Error_class
-        module procedure MPI_Error_class_proc
-    end interface MPI_Error_class
-
-    interface MPI_Error_string
-        module procedure MPI_Error_string_proc
-    end interface MPI_Error_string
-
-    interface MPI_Comm_get_name
-        module procedure MPI_Comm_get_name_proc
-    end interface MPI_Comm_get_name
-
-    interface MPI_Type_get_name
-        module procedure MPI_Type_get_name_proc
-    end interface MPI_Type_get_name
-
-    interface MPI_Gather
-        module procedure MPI_Gather_proc
-    end interface MPI_Gather
-
-    interface MPI_Scatterv
-        module procedure MPI_Scatterv_proc
-    end interface MPI_Scatterv
-
-    interface MPI_Alltoall
-        module procedure MPI_Alltoall_proc
-    end interface MPI_Alltoall
-
-    interface MPI_Alltoallv
-        module procedure MPI_Alltoallv_proc
-    end interface MPI_Alltoallv
-
-    interface MPI_Scan
-        module procedure MPI_Scan_proc
-    end interface MPI_Scan
-
-    interface MPI_Reduce_scatter_block
-        module procedure MPI_Reduce_scatter_block_proc
-    end interface MPI_Reduce_scatter_block
-
-    interface MPI_Test
-        module procedure MPI_Test_proc
-    end interface MPI_Test
-
-    interface MPI_Testall
-        module procedure MPI_Testall_proc
-    end interface MPI_Testall
-
-    interface MPI_Waitany
-        module procedure MPI_Waitany_proc
-    end interface MPI_Waitany
-
-    interface MPI_Probe
-        module procedure MPI_Probe_proc
-    end interface MPI_Probe
-
-    interface MPI_Iprobe
-        module procedure MPI_Iprobe_proc
-    end interface MPI_Iprobe
-
-    interface MPI_Get_count
-        module procedure MPI_Get_count_proc
-    end interface MPI_Get_count
-
-    interface MPI_Type_contiguous
-        module procedure MPI_Type_contiguous_proc
-    end interface MPI_Type_contiguous
-
-    interface MPI_Type_vector
-        module procedure MPI_Type_vector_proc
-    end interface MPI_Type_vector
-
-    interface MPI_Type_commit
-        module procedure MPI_Type_commit_proc
-    end interface MPI_Type_commit
-
-    interface MPI_Type_free
-        module procedure MPI_Type_free_proc
-    end interface MPI_Type_free
-
-    interface MPI_Finalized
-        module procedure MPI_Finalized_proc
-    end interface MPI_Finalized
-
-    interface MPI_Wtick
-        module procedure MPI_Wtick_proc
-    end interface MPI_Wtick
-
-    interface MPI_Get_processor_name
-        module procedure MPI_Get_processor_name_proc
-    end interface MPI_Get_processor_name
-
-    interface MPI_Comm_compare
-        module procedure MPI_Comm_compare_proc
-    end interface MPI_Comm_compare
-
     contains
 
     ! Translation between the ABI values of src/mpi.f90 and the native values
@@ -885,7 +629,7 @@ module mpi
     ! Nonblocking routines cannot use a copy, so they require a contiguous
     ! buffer.
 
-    subroutine MPI_Init_proc(ierr)
+    subroutine MPI_Init(ierr)
         use mpi_c_bindings, only: c_mpi_init
         integer, optional, intent(out) :: ierr
         integer(c_int) :: argc
@@ -894,9 +638,9 @@ module mpi
         argc = 0
         argv = c_null_ptr
         call set_ierror(c_mpi_init(argc, argv), "MPI_Init", ierr)
-    end subroutine MPI_Init_proc
+    end subroutine MPI_Init
 
-    subroutine MPI_Init_thread_proc(required, provided, ierr)
+    subroutine MPI_Init_thread(required, provided, ierr)
         use mpi_c_bindings, only: c_mpi_init_thread
         integer, intent(in) :: required
         integer, intent(out) :: provided
@@ -909,9 +653,9 @@ module mpi
         local_ierr = c_mpi_init_thread(argc, argv, thread_level_f2c(required), c_provided)
         provided = thread_level_c2f(c_provided)
         call set_ierror(local_ierr, "MPI_Init_thread", ierr)
-    end subroutine MPI_Init_thread_proc
+    end subroutine MPI_Init_thread
 
-    subroutine MPI_Initialized_proc(flag, ierr)
+    subroutine MPI_Initialized(flag, ierr)
         use mpi_c_bindings, only: c_mpi_initialized
         logical, intent(out) :: flag
         integer, optional, intent(out) :: ierr
@@ -919,9 +663,9 @@ module mpi
         local_ierr = c_mpi_initialized(c_flag)
         flag = (c_flag /= 0)
         call set_ierror(local_ierr, "MPI_Initialized", ierr)
-    end subroutine MPI_Initialized_proc
+    end subroutine MPI_Initialized
 
-    subroutine MPI_Finalized_proc(flag, ierror)
+    subroutine MPI_Finalized(flag, ierror)
         use mpi_c_bindings, only: c_mpi_finalized
         logical, intent(out) :: flag
         integer, optional, intent(out) :: ierror
@@ -929,34 +673,34 @@ module mpi
         local_ierr = c_mpi_finalized(c_flag)
         flag = (c_flag /= 0)
         call set_ierror(local_ierr, "MPI_Finalized", ierror)
-    end subroutine MPI_Finalized_proc
+    end subroutine MPI_Finalized
 
-    subroutine MPI_Finalize_proc(ierr)
+    subroutine MPI_Finalize(ierr)
         use mpi_c_bindings, only: c_mpi_finalize
         integer, optional, intent(out) :: ierr
         call set_ierror(c_mpi_finalize(), "MPI_Finalize", ierr)
-    end subroutine MPI_Finalize_proc
+    end subroutine MPI_Finalize
 
-    subroutine MPI_Abort_proc(comm, errorcode, ierror)
+    subroutine MPI_Abort(comm, errorcode, ierror)
         use mpi_c_bindings, only: c_mpi_abort
         integer, intent(in) :: comm, errorcode
         integer, optional, intent(out) :: ierror
         call set_ierror(c_mpi_abort(comm_f2c(comm), errorcode), "MPI_Abort", ierror)
-    end subroutine MPI_Abort_proc
+    end subroutine MPI_Abort
 
-    function MPI_Wtime_proc() result(time)
+    function MPI_Wtime() result(time)
         use mpi_c_bindings, only: c_mpi_wtime
         real(8) :: time
         time = c_mpi_wtime()
-    end function MPI_Wtime_proc
+    end function MPI_Wtime
 
-    function MPI_Wtick_proc() result(tick)
+    function MPI_Wtick() result(tick)
         use mpi_c_bindings, only: c_mpi_wtick
         real(8) :: tick
         tick = c_mpi_wtick()
-    end function MPI_Wtick_proc
+    end function MPI_Wtick
 
-    subroutine MPI_Get_processor_name_proc(name, resultlen, ierror)
+    subroutine MPI_Get_processor_name(name, resultlen, ierror)
         use mpi_c_bindings, only: c_mpi_get_processor_name
         character(len=*), intent(out) :: name
         integer, intent(out) :: resultlen
@@ -966,27 +710,27 @@ module mpi
         local_ierr = c_mpi_get_processor_name(c_name, resultlen)
         call c_string_to_fortran(c_name, resultlen, name)
         call set_ierror(local_ierr, "MPI_Get_processor_name", ierror)
-    end subroutine MPI_Get_processor_name_proc
+    end subroutine MPI_Get_processor_name
 
     ! Communicators and groups
 
-    subroutine MPI_Comm_size_proc(comm, size, ierror)
+    subroutine MPI_Comm_size(comm, size, ierror)
         use mpi_c_bindings, only: c_mpi_comm_size
         integer, intent(in) :: comm
         integer, intent(out) :: size
         integer, optional, intent(out) :: ierror
         call set_ierror(c_mpi_comm_size(comm_f2c(comm), size), "MPI_Comm_size", ierror)
-    end subroutine MPI_Comm_size_proc
+    end subroutine MPI_Comm_size
 
-    subroutine MPI_Comm_rank_proc(comm, rank, ierror)
+    subroutine MPI_Comm_rank(comm, rank, ierror)
         use mpi_c_bindings, only: c_mpi_comm_rank
         integer, intent(in) :: comm
         integer, intent(out) :: rank
         integer, optional, intent(out) :: ierror
         call set_ierror(c_mpi_comm_rank(comm_f2c(comm), rank), "MPI_Comm_rank", ierror)
-    end subroutine MPI_Comm_rank_proc
+    end subroutine MPI_Comm_rank
 
-    subroutine MPI_Comm_compare_proc(comm1, comm2, result, ierror)
+    subroutine MPI_Comm_compare(comm1, comm2, result, ierror)
         use mpi_c_bindings, only: c_mpi_comm_compare
         integer, intent(in) :: comm1, comm2
         integer, intent(out) :: result
@@ -995,9 +739,9 @@ module mpi
         local_ierr = c_mpi_comm_compare(comm_f2c(comm1), comm_f2c(comm2), c_result)
         result = comparison_c2f(c_result)
         call set_ierror(local_ierr, "MPI_Comm_compare", ierror)
-    end subroutine MPI_Comm_compare_proc
+    end subroutine MPI_Comm_compare
 
-    subroutine MPI_Comm_Group_proc(comm, group, ierror)
+    subroutine MPI_Comm_Group(comm, group, ierror)
         use mpi_c_bindings, only: c_mpi_comm_group
         integer, intent(in) :: comm
         integer, intent(out) :: group
@@ -1007,17 +751,17 @@ module mpi
         local_ierr = c_mpi_comm_group(comm_f2c(comm), c_group)
         group = group_c2f(c_group)
         call set_ierror(local_ierr, "MPI_Comm_group", ierror)
-    end subroutine MPI_Comm_Group_proc
+    end subroutine MPI_Comm_Group
 
-    subroutine MPI_Group_size_proc(group, size, ierror)
+    subroutine MPI_Group_size(group, size, ierror)
         use mpi_c_bindings, only: c_mpi_group_size
         integer, intent(in) :: group
         integer, intent(out) :: size
         integer, optional, intent(out) :: ierror
         call set_ierror(c_mpi_group_size(group_f2c(group), size), "MPI_Group_size", ierror)
-    end subroutine MPI_Group_size_proc
+    end subroutine MPI_Group_size
 
-    subroutine MPI_Group_free_proc(group, ierror)
+    subroutine MPI_Group_free(group, ierror)
         use mpi_c_bindings, only: c_mpi_group_free
         integer, intent(inout) :: group
         integer, optional, intent(out) :: ierror
@@ -1027,9 +771,9 @@ module mpi
         local_ierr = c_mpi_group_free(c_group)
         group = group_c2f(c_group)
         call set_ierror(local_ierr, "MPI_Group_free", ierror)
-    end subroutine MPI_Group_free_proc
+    end subroutine MPI_Group_free
 
-    subroutine MPI_Group_range_incl_proc(group, n, ranks, newgroup, ierror)
+    subroutine MPI_Group_range_incl(group, n, ranks, newgroup, ierror)
         use mpi_c_bindings, only: c_mpi_group_range_incl
         integer, intent(in) :: group
         integer, intent(in) :: n
@@ -1041,9 +785,9 @@ module mpi
         local_ierr = c_mpi_group_range_incl(group_f2c(group), n, ranks, c_newgroup)
         newgroup = group_c2f(c_newgroup)
         call set_ierror(local_ierr, "MPI_Group_range_incl", ierror)
-    end subroutine MPI_Group_range_incl_proc
+    end subroutine MPI_Group_range_incl
 
-    subroutine MPI_Comm_create_proc(comm, group, newcomm, ierror)
+    subroutine MPI_Comm_create(comm, group, newcomm, ierror)
         use mpi_c_bindings, only: c_mpi_comm_create
         integer, intent(in) :: comm
         integer, intent(in) :: group
@@ -1054,9 +798,9 @@ module mpi
         local_ierr = c_mpi_comm_create(comm_f2c(comm), group_f2c(group), c_newcomm)
         newcomm = comm_c2f(c_newcomm)
         call set_ierror(local_ierr, "MPI_Comm_create", ierror)
-    end subroutine MPI_Comm_create_proc
+    end subroutine MPI_Comm_create
 
-    subroutine MPI_Comm_dup_proc(comm, newcomm, ierror)
+    subroutine MPI_Comm_dup(comm, newcomm, ierror)
         use mpi_c_bindings, only: c_mpi_comm_dup
         integer, intent(in) :: comm
         integer, intent(out) :: newcomm
@@ -1066,9 +810,9 @@ module mpi
         local_ierr = c_mpi_comm_dup(comm_f2c(comm), c_newcomm)
         newcomm = comm_c2f(c_newcomm)
         call set_ierror(local_ierr, "MPI_Comm_dup", ierror)
-    end subroutine MPI_Comm_dup_proc
+    end subroutine MPI_Comm_dup
 
-    subroutine MPI_Comm_free_proc(comm, ierror)
+    subroutine MPI_Comm_free(comm, ierror)
         use mpi_c_bindings, only: c_mpi_comm_free
         integer, intent(inout) :: comm
         integer, optional, intent(out) :: ierror
@@ -1078,9 +822,9 @@ module mpi
         local_ierr = c_mpi_comm_free(c_comm)
         comm = comm_c2f(c_comm)
         call set_ierror(local_ierr, "MPI_Comm_free", ierror)
-    end subroutine MPI_Comm_free_proc
+    end subroutine MPI_Comm_free
 
-    subroutine MPI_Comm_split_proc(comm, color, key, newcomm, ierror)
+    subroutine MPI_Comm_split(comm, color, key, newcomm, ierror)
         use mpi_c_bindings, only: c_mpi_comm_split
         integer, intent(in) :: comm, color, key
         integer, intent(out) :: newcomm
@@ -1090,9 +834,9 @@ module mpi
         local_ierr = c_mpi_comm_split(comm_f2c(comm), color_f2c(color), key, c_newcomm)
         newcomm = comm_c2f(c_newcomm)
         call set_ierror(local_ierr, "MPI_Comm_split", ierror)
-    end subroutine MPI_Comm_split_proc
+    end subroutine MPI_Comm_split
 
-    subroutine MPI_Comm_split_type_proc(comm, split_type, key, info, newcomm, ierror)
+    subroutine MPI_Comm_split_type(comm, split_type, key, info, newcomm, ierror)
         use mpi_c_bindings, only: c_mpi_comm_split_type
         integer, intent(in) :: comm
         integer, intent(in) :: split_type, key
@@ -1105,9 +849,9 @@ module mpi
             info_f2c(info), c_newcomm)
         newcomm = comm_c2f(c_newcomm)
         call set_ierror(local_ierr, "MPI_Comm_split_type", ierror)
-    end subroutine MPI_Comm_split_type_proc
+    end subroutine MPI_Comm_split_type
 
-    subroutine MPI_Comm_get_name_proc(comm, comm_name, resultlen, ierror)
+    subroutine MPI_Comm_get_name(comm, comm_name, resultlen, ierror)
         use mpi_c_bindings, only: c_mpi_comm_get_name
         integer, intent(in) :: comm
         character(len=*), intent(out) :: comm_name
@@ -1118,9 +862,9 @@ module mpi
         local_ierr = c_mpi_comm_get_name(comm_f2c(comm), c_name, resultlen)
         call c_string_to_fortran(c_name, resultlen, comm_name)
         call set_ierror(local_ierr, "MPI_Comm_get_name", ierror)
-    end subroutine MPI_Comm_get_name_proc
+    end subroutine MPI_Comm_get_name
 
-    subroutine MPI_Type_get_name_proc(datatype, type_name, resultlen, ierror)
+    subroutine MPI_Type_get_name(datatype, type_name, resultlen, ierror)
         use mpi_c_bindings, only: c_mpi_type_get_name
         integer, intent(in) :: datatype
         character(len=*), intent(out) :: type_name
@@ -1131,11 +875,11 @@ module mpi
         local_ierr = c_mpi_type_get_name(datatype_f2c(datatype), c_name, resultlen)
         call c_string_to_fortran(c_name, resultlen, type_name)
         call set_ierror(local_ierr, "MPI_Type_get_name", ierror)
-    end subroutine MPI_Type_get_name_proc
+    end subroutine MPI_Type_get_name
 
     ! Topologies
 
-    subroutine MPI_Cart_create_proc(comm_old, ndims, dims, periods, reorder, comm_cart, ierror)
+    subroutine MPI_Cart_create(comm_old, ndims, dims, periods, reorder, comm_cart, ierror)
         use mpi_c_bindings, only: c_mpi_cart_create
         integer, intent(in) :: ndims, dims(ndims)
         logical, intent(in) :: periods(ndims), reorder
@@ -1150,9 +894,9 @@ module mpi
             c_comm_cart)
         comm_cart = comm_c2f(c_comm_cart)
         call set_ierror(local_ierr, "MPI_Cart_create", ierror)
-    end subroutine MPI_Cart_create_proc
+    end subroutine MPI_Cart_create
 
-    subroutine MPI_Cart_coords_proc(comm, rank, maxdims, coords, ierror)
+    subroutine MPI_Cart_coords(comm, rank, maxdims, coords, ierror)
         use mpi_c_bindings, only: c_mpi_cart_coords
         integer, intent(in) :: comm
         integer, intent(in) :: rank, maxdims
@@ -1160,9 +904,9 @@ module mpi
         integer, optional, intent(out) :: ierror
         call set_ierror(c_mpi_cart_coords(comm_f2c(comm), rank, maxdims, coords), &
             "MPI_Cart_coords", ierror)
-    end subroutine MPI_Cart_coords_proc
+    end subroutine MPI_Cart_coords
 
-    subroutine MPI_Cart_shift_proc(comm, direction, disp, rank_source, rank_dest, ierror)
+    subroutine MPI_Cart_shift(comm, direction, disp, rank_source, rank_dest, ierror)
         use mpi_c_bindings, only: c_mpi_cart_shift
         integer, intent(in) :: comm
         integer, intent(in) :: direction, disp
@@ -1173,17 +917,17 @@ module mpi
         rank_source = rank_c2f(c_rank_source)
         rank_dest = rank_c2f(c_rank_dest)
         call set_ierror(local_ierr, "MPI_Cart_shift", ierror)
-    end subroutine MPI_Cart_shift_proc
+    end subroutine MPI_Cart_shift
 
-    subroutine MPI_Dims_create_proc(nnodes, ndims, dims, ierror)
+    subroutine MPI_Dims_create(nnodes, ndims, dims, ierror)
         use mpi_c_bindings, only: c_mpi_dims_create
         integer, intent(in) :: nnodes, ndims
         integer, intent(out) :: dims(ndims)
         integer, optional, intent(out) :: ierror
         call set_ierror(c_mpi_dims_create(nnodes, ndims, dims), "MPI_Dims_create", ierror)
-    end subroutine MPI_Dims_create_proc
+    end subroutine MPI_Dims_create
 
-    subroutine MPI_Cart_sub_proc(comm, remain_dims, newcomm, ierror)
+    subroutine MPI_Cart_sub(comm, remain_dims, newcomm, ierror)
         use mpi_c_bindings, only: c_mpi_cart_sub
         integer, intent(in) :: comm
         logical, intent(in) :: remain_dims(:)
@@ -1196,18 +940,18 @@ module mpi
         local_ierr = c_mpi_cart_sub(comm_f2c(comm), c_loc(remain_dims_c), c_newcomm)
         newcomm = comm_c2f(c_newcomm)
         call set_ierror(local_ierr, "MPI_Cart_sub", ierror)
-    end subroutine MPI_Cart_sub_proc
+    end subroutine MPI_Cart_sub
 
     ! Synchronization and completion
 
-    subroutine MPI_Barrier_proc(comm, ierror)
+    subroutine MPI_Barrier(comm, ierror)
         use mpi_c_bindings, only: c_mpi_barrier
         integer, intent(in) :: comm
         integer, intent(out), optional :: ierror
         call set_ierror(c_mpi_barrier(comm_f2c(comm)), "MPI_Barrier", ierror)
-    end subroutine MPI_Barrier_proc
+    end subroutine MPI_Barrier
 
-    subroutine MPI_Wait_proc(request, status, ierror)
+    subroutine MPI_Wait(request, status, ierror)
         use mpi_c_bindings, only: c_mpi_wait, c_mpi_status_ignore
         integer, intent(inout) :: request
         integer, target, intent(out) :: status(MPI_STATUS_SIZE)
@@ -1224,9 +968,9 @@ module mpi
         end if
         request = request_c2f(c_request)
         call set_ierror(local_ierr, "MPI_Wait", ierror)
-    end subroutine MPI_Wait_proc
+    end subroutine MPI_Wait
 
-    subroutine MPI_Waitall_proc(count, array_of_requests, array_of_statuses, ierror)
+    subroutine MPI_Waitall(count, array_of_requests, array_of_statuses, ierror)
         use mpi_c_bindings, only: c_mpi_waitall, c_mpi_statuses_ignore, c_sizeof_mpi_status
         integer, intent(in) :: count
         integer, dimension(count), intent(inout) :: array_of_requests
@@ -1256,9 +1000,9 @@ module mpi
             array_of_requests(i) = request_c2f(c_requests(i))
         end do
         call set_ierror(local_ierr, "MPI_Waitall", ierror)
-    end subroutine MPI_Waitall_proc
+    end subroutine MPI_Waitall
 
-    subroutine MPI_Test_proc(request, flag, status, ierror)
+    subroutine MPI_Test(request, flag, status, ierror)
         use mpi_c_bindings, only: c_mpi_test, c_mpi_status_ignore
         integer, intent(inout) :: request
         logical, intent(out) :: flag
@@ -1277,9 +1021,9 @@ module mpi
         flag = (c_flag /= 0)
         request = request_c2f(c_request)
         call set_ierror(local_ierr, "MPI_Test", ierror)
-    end subroutine MPI_Test_proc
+    end subroutine MPI_Test
 
-    subroutine MPI_Testall_proc(count, array_of_requests, flag, array_of_statuses, ierror)
+    subroutine MPI_Testall(count, array_of_requests, flag, array_of_statuses, ierror)
         use mpi_c_bindings, only: c_mpi_testall, c_mpi_statuses_ignore, c_sizeof_mpi_status
         integer, intent(in) :: count
         integer, dimension(count), intent(inout) :: array_of_requests
@@ -1311,9 +1055,9 @@ module mpi
             array_of_requests(i) = request_c2f(c_requests(i))
         end do
         call set_ierror(local_ierr, "MPI_Testall", ierror)
-    end subroutine MPI_Testall_proc
+    end subroutine MPI_Testall
 
-    subroutine MPI_Waitany_proc(count, array_of_requests, index, status, ierror)
+    subroutine MPI_Waitany(count, array_of_requests, index, status, ierror)
         use mpi_c_bindings, only: c_mpi_waitany, c_mpi_status_ignore
         integer, intent(in) :: count
         integer, dimension(count), intent(inout) :: array_of_requests
@@ -1338,29 +1082,29 @@ module mpi
             array_of_requests(i) = request_c2f(c_requests(i))
         end do
         call set_ierror(local_ierr, "MPI_Waitany", ierror)
-    end subroutine MPI_Waitany_proc
+    end subroutine MPI_Waitany
 
     ! Point-to-point
 
-    subroutine MPI_Send_proc(buf, count, datatype, dest, tag, comm, ierror)
+    subroutine MPI_Send(buf, count, datatype, dest, tag, comm, ierror)
         use mpi_c_bindings, only: c_mpi_send
         type(*), dimension(..), contiguous, target, intent(in) :: buf
         integer, intent(in) :: count, datatype, dest, tag, comm
         integer, optional, intent(out) :: ierror
         call set_ierror(c_mpi_send(c_loc(buf), count, datatype_f2c(datatype), rank_f2c(dest), &
             tag_f2c(tag), comm_f2c(comm)), "MPI_Send", ierror)
-    end subroutine MPI_Send_proc
+    end subroutine MPI_Send
 
-    subroutine MPI_Ssend_proc(buf, count, datatype, dest, tag, comm, ierror)
+    subroutine MPI_Ssend(buf, count, datatype, dest, tag, comm, ierror)
         use mpi_c_bindings, only: c_mpi_ssend
         type(*), dimension(..), contiguous, target, intent(in) :: buf
         integer, intent(in) :: count, datatype, dest, tag, comm
         integer, optional, intent(out) :: ierror
         call set_ierror(c_mpi_ssend(c_loc(buf), count, datatype_f2c(datatype), rank_f2c(dest), &
             tag_f2c(tag), comm_f2c(comm)), "MPI_Ssend", ierror)
-    end subroutine MPI_Ssend_proc
+    end subroutine MPI_Ssend
 
-    subroutine MPI_Recv_proc(buf, count, datatype, source, tag, comm, status, ierror)
+    subroutine MPI_Recv(buf, count, datatype, source, tag, comm, status, ierror)
         use mpi_c_bindings, only: c_mpi_recv, c_mpi_status_ignore
         type(*), dimension(..), contiguous, target, intent(inout) :: buf
         integer, intent(in) :: count, datatype, source, tag, comm
@@ -1377,9 +1121,9 @@ module mpi
             if (local_ierr == MPI_SUCCESS) call status_c2f(c_status, status)
         end if
         call set_ierror(local_ierr, "MPI_Recv", ierror)
-    end subroutine MPI_Recv_proc
+    end subroutine MPI_Recv
 
-    subroutine MPI_Isend_proc(buf, count, datatype, dest, tag, comm, request, ierror)
+    subroutine MPI_Isend(buf, count, datatype, dest, tag, comm, request, ierror)
         use mpi_c_bindings, only: c_mpi_isend
         type(*), dimension(..), target, asynchronous, intent(in) :: buf
         integer, intent(in) :: count, datatype, dest, tag, comm
@@ -1394,9 +1138,9 @@ module mpi
             tag_f2c(tag), comm_f2c(comm), c_request)
         request = request_c2f(c_request)
         call set_ierror(local_ierr, "MPI_Isend", ierror)
-    end subroutine MPI_Isend_proc
+    end subroutine MPI_Isend
 
-    subroutine MPI_Irecv_proc(buf, count, datatype, source, tag, comm, request, ierror)
+    subroutine MPI_Irecv(buf, count, datatype, source, tag, comm, request, ierror)
         use mpi_c_bindings, only: c_mpi_irecv
         type(*), dimension(..), target, asynchronous, intent(inout) :: buf
         integer, intent(in) :: count, datatype, source, tag, comm
@@ -1411,9 +1155,9 @@ module mpi
             tag_f2c(tag), comm_f2c(comm), c_request)
         request = request_c2f(c_request)
         call set_ierror(local_ierr, "MPI_Irecv", ierror)
-    end subroutine MPI_Irecv_proc
+    end subroutine MPI_Irecv
 
-    subroutine MPI_Sendrecv_proc(sendbuf, sendcount, sendtype, dest, sendtag, &
+    subroutine MPI_Sendrecv(sendbuf, sendcount, sendtype, dest, sendtag, &
             recvbuf, recvcount, recvtype, source, recvtag, comm, status, ierror)
         use mpi_c_bindings, only: c_mpi_sendrecv, c_mpi_status_ignore
         type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
@@ -1437,9 +1181,9 @@ module mpi
             call status_c2f(c_status, status)
         end if
         call set_ierror(local_ierr, "MPI_Sendrecv", ierror)
-    end subroutine MPI_Sendrecv_proc
+    end subroutine MPI_Sendrecv
 
-    subroutine MPI_Probe_proc(source, tag, comm, status, ierror)
+    subroutine MPI_Probe(source, tag, comm, status, ierror)
         use mpi_c_bindings, only: c_mpi_probe, c_mpi_status_ignore
         integer, intent(in) :: source, tag, comm
         integer, target, intent(out) :: status(MPI_STATUS_SIZE)
@@ -1455,9 +1199,9 @@ module mpi
             if (local_ierr == MPI_SUCCESS) call status_c2f(c_status, status)
         end if
         call set_ierror(local_ierr, "MPI_Probe", ierror)
-    end subroutine MPI_Probe_proc
+    end subroutine MPI_Probe
 
-    subroutine MPI_Iprobe_proc(source, tag, comm, flag, status, ierror)
+    subroutine MPI_Iprobe(source, tag, comm, flag, status, ierror)
         use mpi_c_bindings, only: c_mpi_iprobe, c_mpi_status_ignore
         integer, intent(in) :: source, tag, comm
         logical, intent(out) :: flag
@@ -1475,9 +1219,9 @@ module mpi
         end if
         flag = (c_flag /= 0)
         call set_ierror(local_ierr, "MPI_Iprobe", ierror)
-    end subroutine MPI_Iprobe_proc
+    end subroutine MPI_Iprobe
 
-    subroutine MPI_Get_count_proc(status, datatype, count, ierror)
+    subroutine MPI_Get_count(status, datatype, count, ierror)
         use mpi_c_bindings, only: c_mpi_get_count
         integer, intent(in) :: status(MPI_STATUS_SIZE)
         integer, intent(in) :: datatype
@@ -1489,20 +1233,20 @@ module mpi
         local_ierr = c_mpi_get_count(c_loc(c_status), datatype_f2c(datatype), c_count)
         count = count_c2f(c_count)
         call set_ierror(local_ierr, "MPI_Get_count", ierror)
-    end subroutine MPI_Get_count_proc
+    end subroutine MPI_Get_count
 
     ! Collectives
 
-    subroutine MPI_Bcast_proc(buffer, count, datatype, root, comm, ierror)
+    subroutine MPI_Bcast(buffer, count, datatype, root, comm, ierror)
         use mpi_c_bindings, only: c_mpi_bcast
         type(*), dimension(..), contiguous, target, intent(inout) :: buffer
         integer, intent(in) :: count, datatype, root, comm
         integer, optional, intent(out) :: ierror
         call set_ierror(c_mpi_bcast(c_loc(buffer), count, datatype_f2c(datatype), rank_f2c(root), &
             comm_f2c(comm)), "MPI_Bcast", ierror)
-    end subroutine MPI_Bcast_proc
+    end subroutine MPI_Bcast
 
-    subroutine MPI_Reduce_proc(sendbuf, recvbuf, count, datatype, op, root, comm, ierror)
+    subroutine MPI_Reduce(sendbuf, recvbuf, count, datatype, op, root, comm, ierror)
         use mpi_c_bindings, only: c_mpi_reduce
         type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
         type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
@@ -1511,9 +1255,9 @@ module mpi
         call set_ierror(c_mpi_reduce(in_place_or(c_loc(sendbuf)), c_loc(recvbuf), count, &
             datatype_f2c(datatype), op_f2c(op), rank_f2c(root), comm_f2c(comm)), "MPI_Reduce", &
             ierror)
-    end subroutine MPI_Reduce_proc
+    end subroutine MPI_Reduce
 
-    subroutine MPI_Allreduce_proc(sendbuf, recvbuf, count, datatype, op, comm, ierror)
+    subroutine MPI_Allreduce(sendbuf, recvbuf, count, datatype, op, comm, ierror)
         use mpi_c_bindings, only: c_mpi_allreduce
         type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
         type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
@@ -1521,9 +1265,9 @@ module mpi
         integer, optional, intent(out) :: ierror
         call set_ierror(c_mpi_allreduce(in_place_or(c_loc(sendbuf)), c_loc(recvbuf), count, &
             datatype_f2c(datatype), op_f2c(op), comm_f2c(comm)), "MPI_Allreduce", ierror)
-    end subroutine MPI_Allreduce_proc
+    end subroutine MPI_Allreduce
 
-    subroutine MPI_Exscan_proc(sendbuf, recvbuf, count, datatype, op, comm, ierror)
+    subroutine MPI_Exscan(sendbuf, recvbuf, count, datatype, op, comm, ierror)
         use mpi_c_bindings, only: c_mpi_exscan
         type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
         type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
@@ -1531,9 +1275,9 @@ module mpi
         integer, optional, intent(out) :: ierror
         call set_ierror(c_mpi_exscan(in_place_or(c_loc(sendbuf)), c_loc(recvbuf), count, &
             datatype_f2c(datatype), op_f2c(op), comm_f2c(comm)), "MPI_Exscan", ierror)
-    end subroutine MPI_Exscan_proc
+    end subroutine MPI_Exscan
 
-    subroutine MPI_Allgather_proc(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, &
+    subroutine MPI_Allgather(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, &
             comm, ierror)
         use mpi_c_bindings, only: c_mpi_allgather
         type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
@@ -1543,9 +1287,9 @@ module mpi
         call set_ierror(c_mpi_allgather(in_place_or(c_loc(sendbuf)), sendcount, &
             datatype_f2c(sendtype), c_loc(recvbuf), recvcount, datatype_f2c(recvtype), &
             comm_f2c(comm)), "MPI_Allgather", ierror)
-    end subroutine MPI_Allgather_proc
+    end subroutine MPI_Allgather
 
-    subroutine MPI_Gatherv_proc(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, &
+    subroutine MPI_Gatherv(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, &
             recvtype, root, comm, ierror)
         use mpi_c_bindings, only: c_mpi_gatherv
         type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
@@ -1556,9 +1300,9 @@ module mpi
         call set_ierror(c_mpi_gatherv(in_place_or(c_loc(sendbuf)), sendcount, &
             datatype_f2c(sendtype), c_loc(recvbuf), recvcounts, displs, datatype_f2c(recvtype), &
             rank_f2c(root), comm_f2c(comm)), "MPI_Gatherv", ierror)
-    end subroutine MPI_Gatherv_proc
+    end subroutine MPI_Gatherv
 
-    subroutine MPI_Allgatherv_proc(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, &
+    subroutine MPI_Allgatherv(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, &
             recvtype, comm, ierror)
         use mpi_c_bindings, only: c_mpi_allgatherv
         type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
@@ -1569,9 +1313,9 @@ module mpi
         call set_ierror(c_mpi_allgatherv(in_place_or(c_loc(sendbuf)), sendcount, &
             datatype_f2c(sendtype), c_loc(recvbuf), recvcounts, displs, datatype_f2c(recvtype), &
             comm_f2c(comm)), "MPI_Allgatherv", ierror)
-    end subroutine MPI_Allgatherv_proc
+    end subroutine MPI_Allgatherv
 
-    subroutine MPI_Scatter_proc(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, &
+    subroutine MPI_Scatter(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, &
             root, comm, ierror)
         use mpi_c_bindings, only: c_mpi_scatter
         type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
@@ -1582,9 +1326,9 @@ module mpi
             in_place_or(c_loc(recvbuf)), recvcount, datatype_f2c(recvtype), rank_f2c(root), &
                 comm_f2c(comm)), &
             "MPI_Scatter", ierror)
-    end subroutine MPI_Scatter_proc
+    end subroutine MPI_Scatter
 
-    subroutine MPI_Gather_proc(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, &
+    subroutine MPI_Gather(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, &
             root, comm, ierror)
         use mpi_c_bindings, only: c_mpi_gather
         type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
@@ -1594,9 +1338,9 @@ module mpi
         call set_ierror(c_mpi_gather(in_place_or(c_loc(sendbuf)), sendcount, &
             datatype_f2c(sendtype), c_loc(recvbuf), recvcount, datatype_f2c(recvtype), &
             rank_f2c(root), comm_f2c(comm)), "MPI_Gather", ierror)
-    end subroutine MPI_Gather_proc
+    end subroutine MPI_Gather
 
-    subroutine MPI_Scatterv_proc(sendbuf, sendcounts, displs, sendtype, recvbuf, recvcount, &
+    subroutine MPI_Scatterv(sendbuf, sendcounts, displs, sendtype, recvbuf, recvcount, &
             recvtype, root, comm, ierror)
         use mpi_c_bindings, only: c_mpi_scatterv
         type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
@@ -1607,9 +1351,9 @@ module mpi
         call set_ierror(c_mpi_scatterv(c_loc(sendbuf), sendcounts, displs, &
             datatype_f2c(sendtype), in_place_or(c_loc(recvbuf)), recvcount, &
             datatype_f2c(recvtype), rank_f2c(root), comm_f2c(comm)), "MPI_Scatterv", ierror)
-    end subroutine MPI_Scatterv_proc
+    end subroutine MPI_Scatterv
 
-    subroutine MPI_Alltoall_proc(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, &
+    subroutine MPI_Alltoall(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, &
             comm, ierror)
         use mpi_c_bindings, only: c_mpi_alltoall
         type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
@@ -1619,9 +1363,9 @@ module mpi
         call set_ierror(c_mpi_alltoall(in_place_or(c_loc(sendbuf)), sendcount, &
             datatype_f2c(sendtype), c_loc(recvbuf), recvcount, datatype_f2c(recvtype), &
             comm_f2c(comm)), "MPI_Alltoall", ierror)
-    end subroutine MPI_Alltoall_proc
+    end subroutine MPI_Alltoall
 
-    subroutine MPI_Alltoallv_proc(sendbuf, sendcounts, sdispls, sendtype, recvbuf, recvcounts, &
+    subroutine MPI_Alltoallv(sendbuf, sendcounts, sdispls, sendtype, recvbuf, recvcounts, &
             rdispls, recvtype, comm, ierror)
         use mpi_c_bindings, only: c_mpi_alltoallv
         type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
@@ -1632,9 +1376,9 @@ module mpi
         call set_ierror(c_mpi_alltoallv(in_place_or(c_loc(sendbuf)), sendcounts, sdispls, &
             datatype_f2c(sendtype), c_loc(recvbuf), recvcounts, rdispls, &
             datatype_f2c(recvtype), comm_f2c(comm)), "MPI_Alltoallv", ierror)
-    end subroutine MPI_Alltoallv_proc
+    end subroutine MPI_Alltoallv
 
-    subroutine MPI_Scan_proc(sendbuf, recvbuf, count, datatype, op, comm, ierror)
+    subroutine MPI_Scan(sendbuf, recvbuf, count, datatype, op, comm, ierror)
         use mpi_c_bindings, only: c_mpi_scan
         type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
         type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
@@ -1642,9 +1386,9 @@ module mpi
         integer, optional, intent(out) :: ierror
         call set_ierror(c_mpi_scan(in_place_or(c_loc(sendbuf)), c_loc(recvbuf), count, &
             datatype_f2c(datatype), op_f2c(op), comm_f2c(comm)), "MPI_Scan", ierror)
-    end subroutine MPI_Scan_proc
+    end subroutine MPI_Scan
 
-    subroutine MPI_Reduce_scatter_block_proc(sendbuf, recvbuf, recvcount, datatype, op, comm, &
+    subroutine MPI_Reduce_scatter_block(sendbuf, recvbuf, recvcount, datatype, op, comm, &
             ierror)
         use mpi_c_bindings, only: c_mpi_reduce_scatter_block
         type(*), dimension(..), contiguous, target, intent(in) :: sendbuf
@@ -1654,11 +1398,11 @@ module mpi
         call set_ierror(c_mpi_reduce_scatter_block(in_place_or(c_loc(sendbuf)), c_loc(recvbuf), &
             recvcount, datatype_f2c(datatype), op_f2c(op), comm_f2c(comm)), &
             "MPI_Reduce_scatter_block", ierror)
-    end subroutine MPI_Reduce_scatter_block_proc
+    end subroutine MPI_Reduce_scatter_block
 
     ! Derived datatypes
 
-    subroutine MPI_Type_contiguous_proc(count, oldtype, newtype, ierror)
+    subroutine MPI_Type_contiguous(count, oldtype, newtype, ierror)
         use mpi_c_bindings, only: c_mpi_type_contiguous
         integer, intent(in) :: count, oldtype
         integer, intent(out) :: newtype
@@ -1668,9 +1412,9 @@ module mpi
         local_ierr = c_mpi_type_contiguous(count, datatype_f2c(oldtype), c_newtype)
         newtype = datatype_c2f(c_newtype)
         call set_ierror(local_ierr, "MPI_Type_contiguous", ierror)
-    end subroutine MPI_Type_contiguous_proc
+    end subroutine MPI_Type_contiguous
 
-    subroutine MPI_Type_vector_proc(count, blocklength, stride, oldtype, newtype, ierror)
+    subroutine MPI_Type_vector(count, blocklength, stride, oldtype, newtype, ierror)
         use mpi_c_bindings, only: c_mpi_type_vector
         integer, intent(in) :: count, blocklength, stride, oldtype
         integer, intent(out) :: newtype
@@ -1681,9 +1425,9 @@ module mpi
             c_newtype)
         newtype = datatype_c2f(c_newtype)
         call set_ierror(local_ierr, "MPI_Type_vector", ierror)
-    end subroutine MPI_Type_vector_proc
+    end subroutine MPI_Type_vector
 
-    subroutine MPI_Type_commit_proc(datatype, ierror)
+    subroutine MPI_Type_commit(datatype, ierror)
         use mpi_c_bindings, only: c_mpi_type_commit
         integer, intent(inout) :: datatype
         integer, optional, intent(out) :: ierror
@@ -1693,9 +1437,9 @@ module mpi
         local_ierr = c_mpi_type_commit(c_datatype)
         datatype = datatype_c2f(c_datatype)
         call set_ierror(local_ierr, "MPI_Type_commit", ierror)
-    end subroutine MPI_Type_commit_proc
+    end subroutine MPI_Type_commit
 
-    subroutine MPI_Type_free_proc(datatype, ierror)
+    subroutine MPI_Type_free(datatype, ierror)
         use mpi_c_bindings, only: c_mpi_type_free
         integer, intent(inout) :: datatype
         integer, optional, intent(out) :: ierror
@@ -1705,19 +1449,19 @@ module mpi
         local_ierr = c_mpi_type_free(c_datatype)
         datatype = datatype_c2f(c_datatype)
         call set_ierror(local_ierr, "MPI_Type_free", ierror)
-    end subroutine MPI_Type_free_proc
+    end subroutine MPI_Type_free
 
     ! Errors
 
-    subroutine MPI_Comm_set_errhandler_proc(comm, errhandler, ierror)
+    subroutine MPI_Comm_set_errhandler(comm, errhandler, ierror)
         use mpi_c_bindings, only: c_mpi_comm_set_errhandler
         integer, intent(in) :: comm, errhandler
         integer, optional, intent(out) :: ierror
         call set_ierror(c_mpi_comm_set_errhandler(comm_f2c(comm), errhandler_f2c(errhandler)), &
             "MPI_Comm_set_errhandler", ierror)
-    end subroutine MPI_Comm_set_errhandler_proc
+    end subroutine MPI_Comm_set_errhandler
 
-    subroutine MPI_Error_class_proc(errorcode, errorclass, ierror)
+    subroutine MPI_Error_class(errorcode, errorclass, ierror)
         ! Error codes are native; their classes are translated.
         use mpi_c_bindings, only: c_mpi_error_class
         integer, intent(in) :: errorcode
@@ -1727,9 +1471,9 @@ module mpi
         local_ierr = c_mpi_error_class(errorcode, c_class)
         errorclass = error_class_c2f(c_class)
         call set_ierror(local_ierr, "MPI_Error_class", ierror)
-    end subroutine MPI_Error_class_proc
+    end subroutine MPI_Error_class
 
-    subroutine MPI_Error_string_proc(errorcode, string, resultlen, ierror)
+    subroutine MPI_Error_string(errorcode, string, resultlen, ierror)
         use mpi_c_bindings, only: c_mpi_error_string
         integer, intent(in) :: errorcode
         character(len=*), intent(out) :: string
@@ -1740,7 +1484,7 @@ module mpi
         local_ierr = c_mpi_error_string(errorcode, c_string, resultlen)
         call c_string_to_fortran(c_string, resultlen, string)
         call set_ierror(local_ierr, "MPI_Error_string", ierror)
-    end subroutine MPI_Error_string_proc
+    end subroutine MPI_Error_string
 
     ! The native MPI_IN_PLACE if p is the address of MPI_IN_PLACE, else p.
     function in_place_or(p) result(r)
