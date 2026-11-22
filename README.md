@@ -78,6 +78,12 @@ Do not add the vendor Fortran module directory to clients' `USE mpi` path.
 The standalone and POT3D build paths use the same helper. Test outputs are
 isolated under `build/`; untracked source/test files are never removed.
 
+C sources use `CC` from the activated environment, or its `mpicc` when `CC`
+is unset. The Linux Flang/LFortran profiles explicitly provide the GCC
+toolchain required by the packaged MPI wrappers. To override the C compiler,
+set `CC` inside the activated environment; MPI headers and libraries still
+come from the selected `CONDA_PREFIX`.
+
 The handle/status/special-rank parameters and supported error classes come
 from the selected headers and remain usable in constant expressions before
 `MPI_Init`. Error classes, `MPI_SUCCESS` and `MPI_ERR_LASTCODE` use the same

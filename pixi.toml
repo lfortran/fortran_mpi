@@ -15,6 +15,8 @@ platforms = ["linux-64"]
 [feature.flang.dependencies]
 # flang 23 on conda-forge cannot find its intrinsic modules (iso_c_binding)
 flang_linux-64 = "22.*"
+# The Linux MPI wrappers invoke x86_64-conda-linux-gnu-cc.
+gcc_linux-64 = "==16.2.0"
 
 [feature.ifx]
 platforms = ["linux-64"]
@@ -23,6 +25,9 @@ ifx_linux-64 = "*"
 
 [feature.lfortran.dependencies]
 lfortran = ">=0.69.0"
+
+[feature.lfortran.target.linux-64.dependencies]
+gcc_linux-64 = "==16.2.0"
 
 [feature.openmpi.dependencies]
 openmpi = "*"
