@@ -54,9 +54,26 @@ openmpi-mpifort = "*"
 [feature.mpich-fortran.dependencies]
 mpich-mpifort = "*"
 
+# Optional native HDF5 boundary checks; never combine these with mpi-abi.
+[feature.hdf5-openmpi.dependencies]
+openmpi = "==5.0.11"
+hdf5 = { version = "==1.14.6", build = "mpi_openmpi_*" }
+
+[feature.hdf5-openmpi.target.osx-arm64.dependencies]
+openmpi = { version = "==5.0.11", build = "hf0fab5e_0" }
+
+[feature.hdf5-mpich.dependencies]
+mpich = "==5.0.2"
+hdf5 = { version = "==1.14.6", build = "mpi_mpich_*" }
+
+[feature.hdf5-mpich.target.osx-arm64.dependencies]
+mpich = { version = "==5.0.2", build = "h334a687_0" }
+
 # The compiler is an argument, e.g. `pixi run -e lfortran-mpich test 'lfortran --cpp'`,
 # since the compiler packages set FC on activation.
 [tasks]
+build-module = { args = ["fc", "directory"], cmd = "FC=\"{{ fc }} $MPI_DEFS\" bash tools/build_module.sh \"{{ directory }}\"" }
+test-native-hdf5 = { args = ["fc", "shim"], cmd = "FC=\"{{ fc }} $MPI_DEFS\" bash tests/run_native_hdf5.sh \"{{ shim }}\"" }
 test = { args = ["fc"], cmd = "FC=\"{{ fc }} $MPI_DEFS\" ./run_tests.sh", cwd = "tests" }
 test-without-wrappers = { cmd = "./run_tests.sh --without-wrappers", cwd = "tests" }
 pot3d = { args = ["fc"], cmd = "FC=\"{{ fc }} $MPI_DEFS\" ./build_and_run_gfortran.sh", cwd = "tests/pot3d" }
@@ -75,3 +92,5 @@ gfortran-mpich-abi = ["gfortran", "mpich", "mpi-abi"]
 flang-mpich-abi = ["flang", "mpich", "mpi-abi"]
 ifx-mpich-abi = ["ifx", "mpich", "mpi-abi"]
 lfortran-mpich-abi = ["lfortran", "mpich", "mpi-abi"]
+hdf5-openmpi = ["gfortran", "openmpi", "hdf5-openmpi"]
+hdf5-mpich = ["gfortran", "mpich", "hdf5-mpich"]

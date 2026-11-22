@@ -1,5 +1,8 @@
 #!/bin/bash
 set -e
+TEST_DIR=$(cd "$(dirname "$0")" && pwd)
+ROOT=$(cd "$TEST_DIR/.." && pwd)
+cd "$TEST_DIR"
 
 # Color codes
 RED='\033[0;31m'
@@ -39,14 +42,9 @@ fi
 
 
 if [ $USE_WRAPPERS -eq 0 ]; then
-  FC=mpif90
-else
-  if [[ "$(uname)" == "Linux" ]]; then
-    CC=gcc
-  else
-    CC=clang
-  fi
+  FC="$CONDA_PREFIX/bin/mpif90"
 fi
+CC=${CC:-$CONDA_PREFIX/bin/mpicc}
 
 # Define preprocessor flags based on MPI type
 FC_FLAGS=""
@@ -63,8 +61,8 @@ if [[ -n "$MPI_ABI" ]]; then
   MPI_LIB=mpi_abi
 fi
 
-echo -e "${RED}Removing all untracked files${NC}"
-git clean -dfx
+BUILD_DIR="$ROOT/build/${PIXI_ENVIRONMENT_NAME:-manual}/tests-$(date +%Y%m%d%H%M%S)-$$"
+mkdir -p "$BUILD_DIR"
 echo -e "#################################"
 echo -e "${YELLOW}Using FC=${FC} compiler${NC}"
 echo -e "${YELLOW}Using CC=${CC} compiler${NC}"
@@ -83,10 +81,14 @@ else
   echo -e "${YELLOW}No specific test file given. Will compile/run all .f90 tests...${NC}"
 fi
 
+for i in "${!TEST_FILES[@]}"; do
+  if [[ "${TEST_FILES[$i]}" != /* ]]; then
+    TEST_FILES[$i]="$TEST_DIR/${TEST_FILES[$i]}"
+  fi
+done
+cd "$BUILD_DIR"
 if [ $USE_WRAPPERS -eq 1 ]; then
-  $CC $CFLAGS -I"$CONDA_PREFIX/include" -c ../src/mpi_constants.c
-  $FC $FC_FLAGS -c ../src/mpi_c_bindings.f90
-  $FC $FC_FLAGS -c ../src/mpi.f90
+  FC="$FC" CC="$CC" MPI_DEFS="$FC_FLAGS" bash "$ROOT/tools/build_module.sh" .
 fi
 
 start_time=$(date +%s)
@@ -99,14 +101,24 @@ for file in "${TEST_FILES[@]}"; do
   fi
 
   filename=$(basename "$file" .f90)
+  EXTRA_OBJECTS=()
+  if [[ "$filename" == native_handle_status_1 ]]; then
+    if [[ "$MPI_LIB" == mpi_abi ]]; then
+      echo "native_handle_status_1 tests native MPI_Fint, not MPI-5 ABI serialization"
+      continue
+    fi
+    $CC -std=c11 -I"$CONDA_PREFIX/include" -c "$TEST_DIR/native_handle_status_oracle.c" \
+      -o native_handle_status_oracle.o
+    EXTRA_OBJECTS=(native_handle_status_oracle.o)
+  fi
   echo -e "${YELLOW}Compiling $filename...${NC}"
-  $FC -c "$file"
+  $FC -I. -c "$file" -o "$filename.o"
 
   if [ $USE_WRAPPERS -eq 1 ]; then
-    $FC mpi_constants.o mpi_c_bindings.o mpi.o "$filename.o" \
+    $FC mpi_constants.o mpi_native_constants.o mpi_c_bindings.o mpi.o "$filename.o" "${EXTRA_OBJECTS[@]}" \
       -o "$filename" -L"$CONDA_PREFIX/lib" -l$MPI_LIB -Wl,-rpath,"$CONDA_PREFIX/lib"
   else
-    $FC "$filename.o" -o "$filename"
+    $FC "$filename.o" "${EXTRA_OBJECTS[@]}" -o "$filename"
   fi
 
   # Test with 1, 2, and 4 ranks

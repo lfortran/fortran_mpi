@@ -2,7 +2,7 @@ module mpi_c_bindings
     use iso_c_binding, only: c_ptr, c_int
     implicit none
 
-! The only preprocessor block in the library. It selects:
+! Select the C handle representation and serialization functions:
 ! - the size of a C handle: a pointer in the MPI-5 ABI and in Open MPI,
 !   an int in MPICH;
 ! - the functions that convert between C handles and Fortran integers:
@@ -23,16 +23,14 @@ module mpi_c_bindings
 
     integer, parameter :: mpi_handle_kind = MPI_HANDLE_KIND
 
-    ! Native values of the MPI constants, defined in src/mpi_constants.c.
-    ! Each handle table is indexed by the MPI-5 ABI value minus the first
-    ! value of its range; the sizes must match src/mpi_constants.c.
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_op_table") :: c_op_table(0:31)
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_comm_table") :: c_comm_table(0:2)
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_group_table") :: c_group_table(0:1)
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_info_table") :: c_info_table(0:0)
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_request_table") :: c_request_table(0:0)
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_errhandler_table") :: c_errhandler_table(0:3)
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_datatype_table") :: c_datatype_table(0:255)
+    ! Startup identity checks only; order and sizes match src/mpi_constants.c.
+    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_op_table") :: c_op_table(15)
+    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_comm_table") :: c_comm_table(3)
+    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_group_table") :: c_group_table(2)
+    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_info_table") :: c_info_table(1)
+    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_request_table") :: c_request_table(1)
+    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_errhandler_table") :: c_errhandler_table(4)
+    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_datatype_table") :: c_datatype_table(15)
 
     ! Native error classes, indexed by their ABI value
     integer(c_int), bind(C, name="c_error_class_table") :: c_error_class_table(0:62)
@@ -64,13 +62,44 @@ module mpi_c_bindings
     type(c_ptr), bind(C, name="c_MPI_STATUSES_IGNORE") :: c_mpi_statuses_ignore
 
     integer(c_int), bind(C, name="c_sizeof_MPI_Status") :: c_sizeof_mpi_status
-    integer(c_int), bind(C, name="c_offsetof_MPI_SOURCE") :: c_offsetof_mpi_source
-    integer(c_int), bind(C, name="c_offsetof_MPI_TAG") :: c_offsetof_mpi_tag
-    integer(c_int), bind(C, name="c_offsetof_MPI_ERROR") :: c_offsetof_mpi_error
+    integer(c_int), bind(C, name="c_alignof_MPI_Status") :: c_alignof_mpi_status
+    integer(c_int), bind(C, name="c_sizeof_int") :: c_sizeof_int
+    integer(c_int), bind(C, name="c_sizeof_MPI_Fint") :: c_sizeof_mpi_fint
+    integer(c_int), bind(C, name="c_MPI_F_STATUS_SIZE") :: c_mpi_f_status_size
+    integer(c_int), bind(C, name="c_MPI_F_SOURCE") :: c_mpi_f_source
+    integer(c_int), bind(C, name="c_MPI_F_TAG") :: c_mpi_f_tag
+    integer(c_int), bind(C, name="c_MPI_F_ERROR") :: c_mpi_f_error
 
     integer(c_int), bind(C, name="c_sizeof_MPI_Comm") :: c_sizeof_mpi_comm
 
     interface
+
+        function c_malloc(bytes) bind(C, name="malloc") result(pointer)
+            use iso_c_binding, only: c_size_t, c_ptr
+            integer(c_size_t), value :: bytes
+            type(c_ptr) :: pointer
+        end function c_malloc
+
+        subroutine c_free(pointer) bind(C, name="free")
+            use iso_c_binding, only: c_ptr
+            type(c_ptr), value :: pointer
+        end subroutine c_free
+
+#if !defined(MPI_ABI)
+        function c_mpi_status_c2f(c_status, f_status) bind(C, name="MPI_Status_c2f") result(rc)
+            use iso_c_binding, only: c_ptr, c_int
+            type(c_ptr), value :: c_status
+            integer(c_int), intent(out) :: f_status(*)
+            integer(c_int) :: rc
+        end function c_mpi_status_c2f
+
+        function c_mpi_status_f2c(f_status, c_status) bind(C, name="MPI_Status_f2c") result(rc)
+            use iso_c_binding, only: c_ptr, c_int
+            integer(c_int), intent(in) :: f_status(*)
+            type(c_ptr), value :: c_status
+            integer(c_int) :: rc
+        end function c_mpi_status_f2c
+#endif
 
         function c_mpi_comm_f2c(comm_f) bind(C, name="MPI_Comm"//F2C_SUFFIX)
             use iso_c_binding, only: c_int, c_ptr
@@ -102,6 +131,24 @@ module mpi_c_bindings
             integer(kind=MPI_HANDLE_KIND) :: c_mpi_op_f2c
         end function c_mpi_op_f2c
 
+        function c_mpi_op_c2f(op_c) bind(C, name="MPI_Op"//C2F_SUFFIX)
+            use iso_c_binding, only: c_int
+            integer(kind=MPI_HANDLE_KIND), value :: op_c
+            integer(c_int) :: c_mpi_op_c2f
+        end function c_mpi_op_c2f
+
+        function c_mpi_errhandler_f2c(handler_f) bind(C, name="MPI_Errhandler"//F2C_SUFFIX)
+            use iso_c_binding, only: c_int
+            integer(c_int), value :: handler_f
+            integer(kind=MPI_HANDLE_KIND) :: c_mpi_errhandler_f2c
+        end function c_mpi_errhandler_f2c
+
+        function c_mpi_errhandler_c2f(handler_c) bind(C, name="MPI_Errhandler"//C2F_SUFFIX)
+            use iso_c_binding, only: c_int
+            integer(kind=MPI_HANDLE_KIND), value :: handler_c
+            integer(c_int) :: c_mpi_errhandler_c2f
+        end function c_mpi_errhandler_c2f
+
         function c_mpi_type_f2c(datatype_f) bind(C, name="MPI_Type"//F2C_SUFFIX)
             use iso_c_binding, only: c_int
             integer(c_int), value :: datatype_f
@@ -119,6 +166,12 @@ module mpi_c_bindings
             integer(c_int), value :: info_f
             integer(kind=MPI_HANDLE_KIND) :: c_mpi_info_f2c
         end function c_mpi_info_f2c
+
+        function c_mpi_info_c2f(info_c) bind(C, name="MPI_Info"//C2F_SUFFIX)
+            use iso_c_binding, only: c_int
+            integer(kind=MPI_HANDLE_KIND), value :: info_c
+            integer(c_int) :: c_mpi_info_c2f
+        end function c_mpi_info_c2f
 
         function c_mpi_group_f2c(group_f) bind(C, name="MPI_Group"//F2C_SUFFIX)
             use iso_c_binding, only: c_int, c_ptr
@@ -700,4 +753,28 @@ module mpi_c_bindings
         end function c_mpi_comm_compare
 
     end interface
+
+#if defined(MPI_ABI)
+contains
+    integer(c_int) function c_mpi_status_c2f(c_status, f_status) result(rc)
+        use iso_c_binding, only: c_f_pointer
+        type(c_ptr), intent(in) :: c_status
+        integer(c_int), intent(out) :: f_status(*)
+        integer(c_int), pointer :: words(:)
+        ! The all-int layout is specified by the ABI and asserted in C.
+        call c_f_pointer(c_status, words, [c_mpi_f_status_size])
+        f_status(1:c_mpi_f_status_size) = words
+        rc = 0
+    end function c_mpi_status_c2f
+
+    integer(c_int) function c_mpi_status_f2c(f_status, c_status) result(rc)
+        use iso_c_binding, only: c_f_pointer
+        integer(c_int), intent(in) :: f_status(*)
+        type(c_ptr), intent(in) :: c_status
+        integer(c_int), pointer :: words(:)
+        call c_f_pointer(c_status, words, [c_mpi_f_status_size])
+        words = f_status(1:c_mpi_f_status_size)
+        rc = 0
+    end function c_mpi_status_f2c
+#endif
 end module mpi_c_bindings

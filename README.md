@@ -28,7 +28,10 @@ This project currently supports MPI routines such as `MPI_Init`, `MPI_Bcast`, `M
   You can use LFortran, gfortran, or any standard Fortran compiler.
 
 - **MPI Library:**  
-  This project supports OpenMPI and MPICH. Install the desired MPI library along with its development headers.
+  This project supports OpenMPI and MPICH. Native builds require `mpi.h`
+  and the matching `mpif.h` constant headers from the same installation.
+  The private header module exports constants only; provided builds do not
+  use vendor `mpi.mod` or link vendor Fortran MPI implementations.
 
 - **Pixi (Optional):**  
   [pixi](https://pixi.sh) provides an environment `<compiler>-<mpi>` for each
@@ -52,9 +55,63 @@ This project currently supports MPI routines such as `MPI_Init`, `MPI_Bcast`, `M
 
 ---
 
+## Runtime-specific modules and native interoperability
+
+Native public handles are ordinary `INTEGER` values equal to the runtime's
+`MPI_*_c2f` results. Predefined, created and null handles cross native C
+boundaries unchanged, including the `MPI_Comm_f2c` boundary of a parallel-HDF5
+shim. Status arrays use the native Fortran representation. The binding, C
+consumer and HDF5 must use the same MPI installation.
+
+Use a separate module/build directory for each compiler and MPI installation:
+
+```bash
+pixi run -e gfortran-openmpi build-module 'gfortran -cpp' build/gfortran-openmpi
+pixi run -e lfortran-mpich build-module '/path/to/lfortran --cpp' build/lfortran-mpich
+```
+
+The helper produces `mpi.mod`, `mpi_c_bindings.mod`, `mpi_native_constants.mod`
+and four objects: `mpi.o`, `mpi_c_bindings.o`, `mpi_native_constants.o`,
+`mpi_constants.o`. Compile clients with only that module directory on their
+MPI module search path; link all four objects with the matching C `libmpi`.
+Do not add the vendor Fortran module directory to clients' `USE mpi` path.
+The standalone and POT3D build paths use the same helper. Test outputs are
+isolated under `build/`; untracked source/test files are never removed.
+
+The 50 handle/status/special-rank parameters come from the selected headers
+and remain usable in constant expressions before `MPI_Init`. The other 77
+scalar parameters, including error classes, retain their existing normalized
+conventions. Classify native error codes with `MPI_Error_class` before
+comparing them with the public `MPI_ERR_*` parameters.
+
+Default `INTEGER` must match 32-bit C `int`/`MPI_Fint`; type-changing modes
+such as GNU `-fdefault-integer-8` are rejected. Datatype sizes and logical
+representation must also match the MPI installation. Missing or mismatched
+constant headers are errors, not a fallback to guessed integers.
+
+`mpich-abi` uses the separate MPI-5 ABI integer serialization and status
+layout with `libmpi_abi`. This is **not** native `MPI_Fint` compatibility;
+do not mix it with native HDF5/C-MPI libraries.
+
 ## Running Tests
 
 The repository contains a collection of standalone tests located in the `tests/` directory. These tests validate the functionality of the custom MPI wrappers.
+
+`native_handle_status_1.f90` is registered with its native C oracle. It checks
+native constant expressions, created/null handles, status roundtrips and
+ignore/zero-count paths. It applies only to native builds; the ordinary API
+tests still run with MPI-ABI.
+
+The optional `test-native-hdf5` task accepts a compiler and an unchanged
+`vtkhdf_h5_c_shim.c` source file. In a Pixi environment with parallel HDF5 and
+matching native MPI, it checks predefined and duplicated communicators through
+that shim, including handles returned to `use mpi`. It runs with one rank.
+The optional `hdf5-mpich` and `hdf5-openmpi` profiles provide pinned native
+dependencies without adding HDF5 to ordinary API-test environments:
+
+```bash
+pixi run -e hdf5-mpich test-native-hdf5 '/path/to/compiler' /path/to/vtkhdf_h5_c_shim.c
+```
 
 ### Running All Standalone Tests
 

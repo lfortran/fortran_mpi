@@ -1,85 +1,48 @@
 /*
- * Native values of the MPI constants, indexed by their MPI-5 ABI value.
- *
- * src/mpi.f90 gives every MPI constant its MPI-5 ABI value (MPI 5.0,
- * chapter 21), the same for all MPI implementations. This file is compiled
- * against the native <mpi.h> and tells the Fortran code which value the MPI
- * library actually uses for each of them. It contains no functions, only
- * initialized data, and works with any MPI implementation. It goes away once
- * we link against an MPI-5 ABI library, where the native values are the ABI
- * values. See doc/design.md.
- *
- * Each handle table covers the ABI range of one handle type, and is indexed
- * by the ABI value minus the first value of the range. Entries that
- * src/mpi.f90 has no constant for are left zero, which is never a valid
- * handle. The table sizes must match src/mpi_c_bindings.f90.
+ * C metadata for the selected runtime. Handle tables are used only to
+ * verify the matching Fortran constant headers after initialization, not
+ * to translate public integers. Scalar normalization and address sentinels
+ * remain binding-owned. There are no MPI function wrappers here.
  */
 
 #include <stddef.h>
+#if defined(MPI_ABI)
+#include <mpi_abi.h>
+#else
 #include <mpi.h>
+#endif
 
-/* Handles */
-
-MPI_Op c_op_table[32] = {               /* ABI 0x020 .. 0x03f */
-    [0x00] = MPI_OP_NULL,
-    [0x01] = MPI_SUM,
-    [0x02] = MPI_MIN,
-    [0x03] = MPI_MAX,
-    [0x04] = MPI_PROD,
-    [0x08] = MPI_BAND,
-    [0x09] = MPI_BOR,
-    [0x0a] = MPI_BXOR,
-    [0x10] = MPI_LAND,
-    [0x11] = MPI_LOR,
-    [0x12] = MPI_LXOR,
-    [0x18] = MPI_MINLOC,
-    [0x19] = MPI_MAXLOC,
-    [0x1c] = MPI_REPLACE,
-    [0x1d] = MPI_NO_OP,
+/* Order and extents match check_predefined_handles and mpi_c_bindings. */
+MPI_Op c_op_table[15] = {
+    MPI_OP_NULL, MPI_SUM, MPI_MIN, MPI_MAX, MPI_PROD,
+    MPI_BAND, MPI_BOR, MPI_BXOR, MPI_LAND, MPI_LOR, MPI_LXOR,
+    MPI_MINLOC, MPI_MAXLOC, MPI_REPLACE, MPI_NO_OP,
 };
 
-MPI_Comm c_comm_table[3] = {            /* ABI 0x100 .. 0x102 */
-    [0x00] = MPI_COMM_NULL,
-    [0x01] = MPI_COMM_WORLD,
-    [0x02] = MPI_COMM_SELF,
+MPI_Comm c_comm_table[3] = {
+    MPI_COMM_NULL, MPI_COMM_WORLD, MPI_COMM_SELF,
 };
 
-MPI_Group c_group_table[2] = {          /* ABI 0x108 .. 0x109 */
-    [0x00] = MPI_GROUP_NULL,
-    [0x01] = MPI_GROUP_EMPTY,
+MPI_Group c_group_table[2] = {
+    MPI_GROUP_NULL, MPI_GROUP_EMPTY,
 };
 
-MPI_Info c_info_table[1] = {            /* ABI 0x130 */
-    [0x00] = MPI_INFO_NULL,
+MPI_Info c_info_table[1] = {
+    MPI_INFO_NULL,
 };
 
-MPI_Request c_request_table[1] = {      /* ABI 0x180 */
-    [0x00] = MPI_REQUEST_NULL,
+MPI_Request c_request_table[1] = {
+    MPI_REQUEST_NULL,
 };
 
-MPI_Errhandler c_errhandler_table[4] = {  /* ABI 0x140 .. 0x143 */
-    [0x00] = MPI_ERRHANDLER_NULL,
-    [0x01] = MPI_ERRORS_ARE_FATAL,
-    [0x02] = MPI_ERRORS_ABORT,
-    [0x03] = MPI_ERRORS_RETURN,
+MPI_Errhandler c_errhandler_table[4] = {
+    MPI_ERRHANDLER_NULL, MPI_ERRORS_ARE_FATAL, MPI_ERRORS_ABORT, MPI_ERRORS_RETURN,
 };
 
-MPI_Datatype c_datatype_table[256] = {  /* ABI 0x200 .. 0x2ff */
-    [0x00] = MPI_DATATYPE_NULL,
-    [0x09] = MPI_INT,
-    [0x10] = MPI_FLOAT,
-    [0x14] = MPI_DOUBLE,
-    [0x18] = MPI_LOGICAL,
-    [0x19] = MPI_INTEGER,
-    [0x1a] = MPI_REAL,
-    [0x1c] = MPI_DOUBLE_PRECISION,
-    [0x1d] = MPI_DOUBLE_COMPLEX,
-    [0x1e] = MPI_CHARACTER,
-    [0x50] = MPI_INT32_T,
-    [0x58] = MPI_INT64_T,
-    [0xd2] = MPI_REAL4,
-    [0xd9] = MPI_INTEGER8,
-    [0xda] = MPI_REAL8,
+MPI_Datatype c_datatype_table[15] = {
+    MPI_DATATYPE_NULL, MPI_INT, MPI_FLOAT, MPI_DOUBLE, MPI_LOGICAL, MPI_INTEGER,
+    MPI_REAL, MPI_DOUBLE_PRECISION, MPI_DOUBLE_COMPLEX, MPI_CHARACTER,
+    MPI_INT32_T, MPI_INT64_T, MPI_REAL4, MPI_INTEGER8, MPI_REAL8,
 };
 
 /* Error classes, indexed by their ABI value. The classes of MPI 4 and
@@ -193,12 +156,36 @@ void* c_MPI_IN_PLACE = MPI_IN_PLACE;
 MPI_Status* c_MPI_STATUS_IGNORE = MPI_STATUS_IGNORE;
 MPI_Status* c_MPI_STATUSES_IGNORE = MPI_STATUSES_IGNORE;
 
-/* Layout of the native MPI_Status, to convert it to the ABI layout of the
- * Fortran status, and the size of a native handle, to check MPI_HANDLE_KIND. */
+_Static_assert(sizeof(int) == 4, "fortran_mpi requires 32-bit C int");
+_Static_assert(sizeof(MPI_Comm) == sizeof(MPI_Op) &&
+               sizeof(MPI_Comm) == sizeof(MPI_Group) &&
+               sizeof(MPI_Comm) == sizeof(MPI_Info) &&
+               sizeof(MPI_Comm) == sizeof(MPI_Request) &&
+               sizeof(MPI_Comm) == sizeof(MPI_Errhandler) &&
+               sizeof(MPI_Comm) == sizeof(MPI_Datatype),
+               "fortran_mpi requires uniform C handle widths");
+_Static_assert(_Alignof(MPI_Status) <= _Alignof(max_align_t),
+               "MPI_Status alignment must be supported by malloc");
 
+#if defined(MPI_ABI_VERSION)
+/* Only the standard ABI has this specified all-int C status layout. */
+_Static_assert(MPI_F_STATUS_SIZE == 8 && sizeof(MPI_Status) == 8 * sizeof(int) &&
+               offsetof(MPI_Status, MPI_SOURCE) == 0 &&
+               offsetof(MPI_Status, MPI_TAG) == sizeof(int) &&
+               offsetof(MPI_Status, MPI_ERROR) == 2 * sizeof(int),
+               "unsupported MPI-5 ABI status layout");
+int c_sizeof_MPI_Fint = sizeof(int);
+#else
+_Static_assert(_Generic((MPI_Fint)0, int: 1, default: 0),
+               "fortran_mpi requires MPI_Fint to be C int");
+int c_sizeof_MPI_Fint = sizeof(MPI_Fint);
+#endif
+
+int c_sizeof_int = sizeof(int);
 int c_sizeof_MPI_Status = sizeof(MPI_Status);
-int c_offsetof_MPI_SOURCE = offsetof(MPI_Status, MPI_SOURCE);
-int c_offsetof_MPI_TAG = offsetof(MPI_Status, MPI_TAG);
-int c_offsetof_MPI_ERROR = offsetof(MPI_Status, MPI_ERROR);
-
+int c_alignof_MPI_Status = _Alignof(MPI_Status);
+int c_MPI_F_STATUS_SIZE = MPI_F_STATUS_SIZE;
+int c_MPI_F_SOURCE = MPI_F_SOURCE;
+int c_MPI_F_TAG = MPI_F_TAG;
+int c_MPI_F_ERROR = MPI_F_ERROR;
 int c_sizeof_MPI_Comm = sizeof(MPI_Comm);
