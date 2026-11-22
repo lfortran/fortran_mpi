@@ -924,7 +924,7 @@ module mpi
     subroutine MPI_Dims_create(nnodes, ndims, dims, ierror)
         use mpi_c_bindings, only: c_mpi_dims_create
         integer, intent(in) :: nnodes, ndims
-        integer, intent(out) :: dims(ndims)
+        integer, intent(inout) :: dims(ndims)
         integer, optional, intent(out) :: ierror
         call set_ierror(c_mpi_dims_create(nnodes, ndims, dims), "MPI_Dims_create", ierror)
     end subroutine MPI_Dims_create
