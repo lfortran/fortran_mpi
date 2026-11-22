@@ -213,7 +213,33 @@ We do not use the native `MPI_Status_c2f`. It writes the native Fortran
 layout: 6 integers for Open MPI, and no rank translation.
 
 `MPI_Waitall` and `MPI_Testall` receive the native statuses into one array, each
-`sizeof(MPI_Status)` bytes, and converts them one by one.
+`sizeof(MPI_Status)` bytes, and convert them one by one. `MPI_Waitall` copies
+statuses on success or `MPI_ERR_IN_STATUS`. `MPI_Testall` copies them on
+success with a true flag, or on `MPI_ERR_IN_STATUS` even with a false flag.
+On success with a false flag the statuses are undefined and are not copied.
+Neither routine copies statuses for other errors; `MPI_Testall` also avoids
+reading the native flag on those errors.
+
+On `MPI_ERR_IN_STATUS`, each status's error code is meaningful, but this does
+not make failed or pending receive metadata or payload valid. Tests inspect
+source, tag, count and payload only for successful receives (and the defined
+empty status for a null request). Send metadata is not a receive status.
+
+Both routines always copy native request handles back, including on errors.
+An error does not imply that every request became null: pending requests and
+completed requests retained by the native implementation must remain available
+for later completion. The wrappers do not force them to null.
+
+`tests/completion_errors_1.f90` exercises explicit and ignored statuses on
+peer transfers at two and four ranks; its one-rank run is smoke only.
+`tests/partial_testall_mpich_1.f90` separately checks false-flag
+`MPI_ERR_IN_STATUS`, retained requests and delayed completion. That deterministic
+self-transfer case relies on MPICH's partial-completion behavior, so
+`tests/run_tests.sh` selects it only for the provided bindings with MPICH and
+one rank. Its `MPI_Testall` and `MPI_Waitall` calls also omit optional `ierror`;
+those arguments are mandatory in the vendor's legacy `use mpi` interface.
+This restriction does not replace or restrict the peer regression, including
+vendor controls and Open MPI.
 
 ### `MPI_IN_PLACE`, `MPI_STATUS_IGNORE` and `MPI_STATUSES_IGNORE`
 
@@ -259,6 +285,11 @@ shape of a status, `(MPI_STATUS_SIZE)`, and of an array of statuses,
   ```
 
 - `MPI_Error_string` takes the native code.
+- The private `is_error_in_status` predicate calls the public `MPI_Error_class`
+  wrapper with an explicit error result. It compares the returned class with
+  `MPI_ERR_IN_STATUS` only when classification succeeds, never comparing a raw
+  native error code with a public class constant. Completion wrappers retain
+  the original native return code and the usual optional-`ierror` behavior.
 
 ### Startup checks
 

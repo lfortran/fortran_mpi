@@ -7,7 +7,7 @@ program test_1
     integer :: requests(2), request
     integer :: status(MPI_STATUS_SIZE), statuses(MPI_STATUS_SIZE, 2)
     integer :: sendbuf(3), recvbuf(3)
-    real(8) :: x, y
+    real(8), asynchronous :: x, y
     logical :: flag
 
     call MPI_Init(ierr)
@@ -57,6 +57,30 @@ program test_1
     end do
     if (any(requests /= MPI_REQUEST_NULL)) error stop "MPI_Testall: requests not freed"
     if (y /= left + 0.5d0) error stop "MPI_Testall: wrong data"
+
+    ! No matching self-send exists until both false Testall calls return.
+    requests = MPI_REQUEST_NULL
+    y = -1
+    call MPI_Irecv(y, 1, MPI_DOUBLE_PRECISION, 0, 9, MPI_COMM_SELF, requests(1), ierr)
+    if (ierr /= MPI_SUCCESS) error stop "MPI_Testall: unmatched receive setup failed"
+    request = requests(1)
+    call MPI_Testall(2, requests, flag, statuses, ierr)
+    if (ierr /= MPI_SUCCESS) error stop "MPI_Testall: unmatched receive test failed"
+    if (flag) error stop "MPI_Testall: unmatched receive completed"
+    if (any(requests /= [request, MPI_REQUEST_NULL])) error stop "MPI_Testall: pending requests changed"
+    ! Statuses are undefined on success with flag false; do not inspect them.
+    call MPI_Testall(2, requests, flag, MPI_STATUSES_IGNORE, ierr)
+    if (ierr /= MPI_SUCCESS) error stop "MPI_Testall: ignored unmatched receive test failed"
+    if (flag) error stop "MPI_Testall: ignored unmatched receive completed"
+    if (any(requests /= [request, MPI_REQUEST_NULL])) error stop "MPI_Testall: ignored pending requests changed"
+    call MPI_Isend(x, 1, MPI_DOUBLE_PRECISION, 0, 9, MPI_COMM_SELF, requests(2), ierr)
+    if (ierr /= MPI_SUCCESS) error stop "MPI_Testall: matching send failed"
+    call MPI_Waitall(2, requests, statuses, ierr)
+    if (ierr /= MPI_SUCCESS) error stop "MPI_Testall: pending requests did not complete"
+    if (any(requests /= MPI_REQUEST_NULL)) error stop "MPI_Testall: pending requests not freed"
+    if (y /= x) error stop "MPI_Testall: wrong self data"
+    if (statuses(MPI_SOURCE, 1) /= 0) error stop "MPI_Testall: wrong self source"
+    if (statuses(MPI_TAG, 1) /= 9) error stop "MPI_Testall: wrong self tag"
 
     ! MPI_Test of a null request completes at once, with an empty status
     request = MPI_REQUEST_NULL
