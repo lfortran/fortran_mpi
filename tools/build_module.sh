@@ -43,6 +43,7 @@ case "${FC_COMMAND[0]##*/}" in
     *ifx*|*ifort*) CPP=(-fpp) ;;
     *) CPP=(-cpp) ;;
 esac
+HEADER_INCLUDES=(-I. -I"$ROOT/src" -I"$PREFIX/include")
 mkdir -p "$1"
 cd "$1"
 # Replace only our outputs, never clean source trees or vendor modules.
@@ -61,7 +62,7 @@ if [[ "$MPI_LIB" == mpi ]]; then
     for name in MPI_SUCCESS MPI_ERR_PROC_ABORTED MPI_ERR_VALUE_TOO_LARGE \
             MPI_ERR_SESSION MPI_ERR_ERRHANDLER MPI_ERR_ABI; do
         printf '#include <mpi.h>\nint mpi_constant_check = %s;\n' "$name" > mpi_constant_check.c
-        printf "module mpi_constant_check\nimplicit none\nprivate\ninclude 'mpif.h'\n" \
+        printf 'module mpi_constant_check\nimplicit none\nprivate\n#include "mpi_native_headers.inc"\n' \
             > mpi_constant_check.f90
         printf 'integer, parameter :: required_constant = %s\nend module\n' "$name" \
             >> mpi_constant_check.f90
@@ -71,7 +72,7 @@ if [[ "$MPI_LIB" == mpi ]]; then
             > "mpi-constant-checks/$name-c.log" 2>&1 || c_status=$?
         f_status=0
         "${FC_COMMAND[@]}" "${CPP[@]}" "${DEFINITIONS[@]}" "${HEADER_FLAGS[@]}" \
-            -I"$PREFIX/include" -c mpi_constant_check.f90 -o mpi_constant_check.o \
+            "${HEADER_INCLUDES[@]}" -c mpi_constant_check.f90 -o mpi_constant_check.o \
             > "mpi-constant-checks/$name-fortran.log" 2>&1 || f_status=$?
         if [[ $c_status -gt 1 || $f_status -gt 1 || \
                 ( "$name" == MPI_SUCCESS && ( $c_status != 0 || $f_status != 0 ) ) || \
@@ -94,7 +95,7 @@ if [[ "$MPI_LIB" == mpi ]]; then
         mpi_constant_check.o mpi_constant_check.mod
 fi
 "${FC_COMMAND[@]}" "${CPP[@]}" "${DEFINITIONS[@]}" "${HEADER_FLAGS[@]}" \
-    -I. -I"$PREFIX/include" -c "$ROOT/src/mpi_native_constants.f90" -o mpi_native_constants.o
+    "${HEADER_INCLUDES[@]}" -c "$ROOT/src/mpi_native_constants.f90" -o mpi_native_constants.o
 # Vendor include directories must NOT be on the USE mpi search path.
 "${FC_COMMAND[@]}" "${CPP[@]}" "${DEFINITIONS[@]}" -I. \
     -c "$ROOT/src/mpi_c_bindings.f90" -o mpi_c_bindings.o

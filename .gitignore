@@ -12,6 +12,7 @@ mpi_program
 !/tests/*.f90
 !/tests/*.c
 !/tests/*.sh
+!/tests/headers/
 !/tests/hdf5/
 !/tests/pot3d/
 /tests/pot3d/bin/*

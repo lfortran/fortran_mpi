@@ -24,8 +24,8 @@ to other compilers whose default types match the selected MPI configuration.
    implementation and every platform.
 
 3. **Native integer handles and statuses.** `src/mpi_native_constants.f90`
-   includes the matching `mpif.h` in a private module and exports only the
-   41 existing handle parameters, four status parameters, five special
+   includes the matching native constant headers in a private module and exports
+   only the 41 existing handle parameters, four status parameters, five special
    rank/tag/undefined parameters and supported error constants. They remain
    usable in initialization expressions before `MPI_Init`. Values are never
    generated from a running program or copied from observed native IDs. The
@@ -112,6 +112,15 @@ directory and GNU's legacy-header mode or LFortran's `--implicit-interface`.
 Those options are not propagated to clients or the MPI procedure module.
 Missing `mpif.h` is an unsupported setup, not a reason to guess values or
 borrow headers from another installation.
+
+`src/mpi_native_headers.inc` selects the same headers for the private module
+and its availability probes. With Open MPI these are `mpif-config.h`,
+`mpif-constants.h` and `mpif-handles.h`; the other `mpif.h` includes supply
+unused I/O declarations, external procedures, COMMON sentinels and
+`MPI_SIZEOF`/`PMPI_SIZEOF` interfaces. The latter can require real kinds that
+the consumer compiler does not support. Do not compile those interfaces or
+alter their kinds: the integer datatype handles are still valid metadata.
+MPICH continues to use its matching `mpif.h`, and MPI-ABI remains separate.
 
 The helper compiles `MPI_SUCCESS` controls and probes for the five newer error
 classes in both C and Fortran headers. It rejects disagreement or an unusable

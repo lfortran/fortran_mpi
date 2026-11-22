@@ -128,7 +128,7 @@ module mpi_native_constants
     public :: MPI_ERR_PROC_ABORTED, MPI_ERR_VALUE_TOO_LARGE, MPI_ERR_SESSION, MPI_ERR_ERRHANDLER, MPI_ERR_ABI
 #else
     ! Do not export vendor procedures, COMMON sentinels or capability flags.
-    include 'mpif.h'
+#include "mpi_native_headers.inc"
     ! Build-local PUBLIC declarations only; missing names have no substitutes.
     include 'mpi_optional_error_exports.inc'
 #endif

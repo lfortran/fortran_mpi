@@ -70,6 +70,10 @@ jobs:
         if: matrix.compiler == 'gfortran' && matrix.mpi != 'mpich-abi'
         run: pixi run -e $ENV test-without-wrappers
 
+      - name: Test constant-only headers
+        if: matrix.mpi == 'openmpi'
+        run: pixi run -e $ENV test-constant-headers "${{ matrix.fc }}" "build/$ENV/constant-headers"
+
       - name: Test
         run: pixi run -e $ENV test "${{ matrix.fc }}"
 

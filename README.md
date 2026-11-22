@@ -32,6 +32,9 @@ This project currently supports MPI routines such as `MPI_Init`, `MPI_Bcast`, `M
   and the matching `mpif.h` constant headers from the same installation.
   The private header module exports constants only; provided builds do not
   use vendor `mpi.mod` or link vendor Fortran MPI implementations.
+  For Open MPI it includes the matching `mpif-config.h`, `mpif-constants.h`
+  and `mpif-handles.h` directly, not the unrelated `mpif-sizeof.h` procedure
+  interfaces whose real kinds depend on the compiler used to build Open MPI.
 
 - **Pixi (Optional):**  
   [pixi](https://pixi.sh) provides an environment `<compiler>-<mpi>` for each
@@ -93,7 +96,8 @@ or results. Classify detailed codes (including status errors) before comparing
 with `MPI_ERR_*`. `MPI_ERR_LASTCODE` is a bound, not a class to query.
 
 The 64 routine interfaces remain available, but newer error-class names are
-exported only when compile-only C and `mpif.h` probes agree they are present.
+exported only when compile-only C and selected Fortran constant-header probes
+agree they are present. The probes and private module share one header selector.
 The helper saves availability and diagnostics under `mpi-constant-checks/`
 in the build directory. Missing names are unavailable, never aliases or
 invented values. For example, native Open MPI 5.0.11 lacks
@@ -122,6 +126,15 @@ tests still run with MPI-ABI.
 and MPI-ABI builds. It checks classes as codes, self-mapping and idempotence,
 real detailed errors, and exact C message bytes and lengths, including
 permitted queries before initialization and after finalization.
+
+The compile-only `test-constant-headers` task checks that Open MPI's procedure
+headers are not read by either the availability probes or the private module.
+It uses the selected headers with a deliberately unusable `mpif-sizeof.h` test
+fixture; no constants or Fortran kinds are changed and no MPI program runs:
+
+```bash
+pixi run -e gfortran-openmpi test-constant-headers 'gfortran -cpp' build/gfortran-openmpi/header-check
+```
 
 The optional `test-native-hdf5` task accepts a compiler and an unchanged
 `vtkhdf_h5_c_shim.c` source file. In a Pixi environment with parallel HDF5 and

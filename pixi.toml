@@ -78,6 +78,7 @@ mpich = { version = "==5.0.2", build = "h334a687_0" }
 # since the compiler packages set FC on activation.
 [tasks]
 build-module = { args = ["fc", "directory"], cmd = "FC=\"{{ fc }} $MPI_DEFS\" bash tools/build_module.sh \"{{ directory }}\"" }
+test-constant-headers = { args = ["fc", "directory"], cmd = "FC=\"{{ fc }} $MPI_DEFS\" bash tests/check_constant_headers.sh \"{{ directory }}\"" }
 test-native-hdf5 = { args = ["fc", "shim"], cmd = "FC=\"{{ fc }} $MPI_DEFS\" bash tests/run_native_hdf5.sh \"{{ shim }}\"" }
 test = { args = ["fc"], cmd = "FC=\"{{ fc }} $MPI_DEFS\" ./run_tests.sh", cwd = "tests" }
 test-without-wrappers = { cmd = "./run_tests.sh --without-wrappers", cwd = "tests" }
