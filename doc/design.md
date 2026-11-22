@@ -94,6 +94,15 @@ src/mpi_constants.c     native values of the constants, as tables
 libmpi (C), from Open MPI, MPICH or any other implementation
 ```
 
+## Dimension constraints
+
+`MPI_Dims_create` takes `dims` as `intent(inout)`: positive entries are input
+constraints that remain fixed, while zero entries are computed. A temporary
+created for a noncontiguous array section must receive those input values.
+On success, the results update only the selected section, not its neighbors.
+Check `ierror` before using the returned dimensions. This is a local grid
+calculation; `nnodes` need not equal the number of MPI ranks running the program.
+
 ## Constants and their translation
 
 The values below are what `src/mpi.f90` uses. "Native" means the value of the
