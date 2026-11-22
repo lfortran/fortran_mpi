@@ -99,6 +99,15 @@ for file in "${TEST_FILES[@]}"; do
   fi
 
   filename=$(basename "$file" .f90)
+  ranks=(1 2 4)
+  if [[ "$filename" == "partial_testall_mpich_1" ]]; then
+    # This MPICH case also omits ierror, which the vendor's legacy use mpi requires.
+    if [[ "$MPI_TYPE" != "mpich" || $USE_WRAPPERS -eq 0 ]]; then
+      echo -e "${YELLOW}Skipping $filename: requires the provided bindings with MPICH${NC}"
+      continue
+    fi
+    ranks=(1)
+  fi
   echo -e "${YELLOW}Compiling $filename...${NC}"
   $FC -c "$file"
 
@@ -109,8 +118,8 @@ for file in "${TEST_FILES[@]}"; do
     $FC "$filename.o" -o "$filename"
   fi
 
-  # Test with 1, 2, and 4 ranks
-  for np in 1 2 4; do
+  # Test with 1, 2, and 4 ranks unless the regression has a narrower scope.
+  for np in "${ranks[@]}"; do
     # set MPIEXEC_ARGS based on MPI type and number of ranks
     # `--oversubscribe` isn't needed with Open MPI when running
     # with 1 or 2 ranks

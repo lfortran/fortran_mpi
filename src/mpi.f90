@@ -187,6 +187,7 @@ module mpi
     private :: split_type_f2c, color_f2c, count_c2f, index_c2f, comparison_c2f
     private :: status_c2f, status_f2c, c_string_to_fortran, set_ierror
     private :: errhandler_f2c, error_class_c2f, is_status_ignore, is_statuses_ignore
+    private :: is_error_in_status
     private :: in_place_or
     private :: c_int, c_char, c_ptr, c_loc, c_null_ptr, c_associated
 
@@ -992,7 +993,7 @@ module mpi
             n = c_sizeof_mpi_status/4
             allocate(c_statuses(n*max(count, 1)))
             local_ierr = c_mpi_waitall(count, c_requests, c_loc(c_statuses))
-            if (local_ierr == MPI_SUCCESS) then
+            if (local_ierr == MPI_SUCCESS .or. is_error_in_status(local_ierr)) then
                 do i = 1, count
                     call status_c2f(c_statuses((i-1)*n+1:i*n), array_of_statuses(:, i))
                 end do
@@ -1037,22 +1038,28 @@ module mpi
         integer(c_int), allocatable, target :: c_statuses(:)
         integer(c_int) :: c_flag, local_ierr
         integer :: i, n
+        logical :: ignore_statuses, error_in_status
         do i = 1, count
             c_requests(i) = request_f2c(array_of_requests(i))
         end do
-        if (is_statuses_ignore(array_of_statuses)) then
+        ignore_statuses = is_statuses_ignore(array_of_statuses)
+        if (ignore_statuses) then
             local_ierr = c_mpi_testall(count, c_requests, c_flag, c_mpi_statuses_ignore)
         else
             n = c_sizeof_mpi_status/4
             allocate(c_statuses(n*max(count, 1)))
             local_ierr = c_mpi_testall(count, c_requests, c_flag, c_loc(c_statuses))
-            if (local_ierr == MPI_SUCCESS .and. c_flag /= 0) then
+        end if
+        error_in_status = is_error_in_status(local_ierr)
+        if (local_ierr == MPI_SUCCESS .or. error_in_status) then
+            flag = (c_flag /= 0)
+            ! MPI_ERR_IN_STATUS defines per-request errors even when flag is false.
+            if (.not. ignore_statuses .and. (flag .or. error_in_status)) then
                 do i = 1, count
                     call status_c2f(c_statuses((i-1)*n+1:i*n), array_of_statuses(:, i))
                 end do
             end if
         end if
-        flag = (c_flag /= 0)
         do i = 1, count
             array_of_requests(i) = request_c2f(c_requests(i))
         end do
@@ -1474,6 +1481,15 @@ module mpi
         errorclass = error_class_c2f(c_class)
         call set_ierror(local_ierr, "MPI_Error_class", ierror)
     end subroutine MPI_Error_class
+
+    logical function is_error_in_status(errorcode)
+        integer, intent(in) :: errorcode
+        integer :: errorclass, ierr
+        is_error_in_status = .false.
+        if (errorcode == MPI_SUCCESS) return
+        call MPI_Error_class(errorcode, errorclass, ierr)
+        if (ierr == MPI_SUCCESS) is_error_in_status = (errorclass == MPI_ERR_IN_STATUS)
+    end function is_error_in_status
 
     subroutine MPI_Error_string(errorcode, string, resultlen, ierror)
         use mpi_c_bindings, only: c_mpi_error_string
