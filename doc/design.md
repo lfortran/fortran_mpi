@@ -15,7 +15,7 @@ to other compilers whose default types match the selected MPI configuration.
 
 ## Principles
 
-1. **Drop-in `use mpi`.** Existing MPI programs compile unchanged. The tests
+1. **Drop-in `use mpi` for implemented routines and available constants.** The tests
    are written against the MPI standard, not against this library. CI also
    builds them with the vendor's own `mpif90` (`test-without-wrappers`), so a
    test that passes only with our module is a wrong test.
@@ -25,16 +25,16 @@ to other compilers whose default types match the selected MPI configuration.
 
 3. **Native integer handles and statuses.** `src/mpi_native_constants.f90`
    includes the matching `mpif.h` in a private module and exports only the
-   41 existing handle parameters, four status parameters and five special
-   rank/tag/undefined parameters. They remain usable in initialization
-   expressions before `MPI_Init`. Values are never generated from a running
-   program or copied from observed native IDs. The other 77 scalar
-   parameters retain the binding's existing conventions.
+   41 existing handle parameters, four status parameters, five special
+   rank/tag/undefined parameters and supported error constants. They remain
+   usable in initialization expressions before `MPI_Init`. Values are never
+   generated from a running program or copied from observed native IDs. The
+   other 13 scalar parameters retain the binding's existing conventions.
 
 4. **C supplies independent metadata.** `src/mpi_constants.c` contains
    initialized data and compile-time assertions, not MPI function wrappers.
    It supplies C storage sizes, Fortran status metadata, address sentinels
-   and scalar normalization tables. Its compact predefined-handle tables
+   and remaining scalar conversions. Its compact predefined-handle tables
    check header/library agreement after initialization; they do not implement
    a private handle namespace.
 
@@ -113,6 +113,14 @@ Those options are not propagated to clients or the MPI procedure module.
 Missing `mpif.h` is an unsupported setup, not a reason to guess values or
 borrow headers from another installation.
 
+The helper compiles `MPI_SUCCESS` controls and probes for the five newer error
+classes in both C and Fortran headers. It rejects disagreement or an unusable
+control, and writes only available `PUBLIC` declarations into the build-local
+`mpi_optional_error_exports.inc`. This include contains no numeric values.
+Diagnostics and availability are saved under `mpi-constant-checks/`.
+Neither probing nor compiling the private constant module executes target code
+or imports vendor procedures. An absent name stays absent from `use mpi`.
+
 Default `INTEGER`, `integer(c_int)` and the library's `MPI_Fint` must have
 matching 32-bit storage. The private module rejects a different default
 integer kind, including GNU `-fdefault-integer-8`. Datatype sizes and logical
@@ -151,7 +159,7 @@ binding use the same native MPI installation.
 Wildcards and special ranks (`MPI_ANY_SOURCE`, `MPI_ANY_TAG`, `MPI_PROC_NULL`,
 `MPI_ROOT`, `MPI_UNDEFINED`) use native values so native status fields can be
 compared with them directly. Thread levels, `MPI_COMM_TYPE_SHARED`, comparison
-results, string capacities and error classes keep the existing MPI-5 ABI
+results and string capacities keep the existing MPI-5 ABI
 scalar conventions; the private header module is not a wholesale vendor API
 reexport.
 
@@ -219,21 +227,40 @@ shape of a status, `(MPI_STATUS_SIZE)`, and of an array of statuses,
 - Error handlers are native handles:
   `MPI_ERRORS_ARE_FATAL`, `MPI_ERRORS_ABORT`, `MPI_ERRORS_RETURN`.
   `MPI_Comm_set_errhandler` sets one.
-- Error codes, which MPI returns in `ierror` and defined status error fields,
-  are left native. They are
-  implementation-specific in the MPI-5 ABI too. Only `MPI_SUCCESS` = 0 is a
-  fixed code.
-- Error classes have their ABI values (`MPI_ERR_ROOT` = 8, ...).
-  `MPI_Error_class` translates the native class back to the ABI value through
-  the table `c_error_class_table`. Compare a native code with a public class
-  only after this conversion:
+- Error codes in `ierror` and defined status error fields, and classes returned
+  by `MPI_Error_class`, all belong to the selected C MPI namespace. Native
+  builds import classes, `MPI_SUCCESS` and `MPI_ERR_LASTCODE` from the matching
+  `mpif.h`; no private numbering or lookup translates them. Detailed codes
+  need not equal their classes, so classify before comparing:
 
   ```fortran
-  call MPI_Error_class(ierr, errorclass)
+  call MPI_Error_class(ierr, errorclass, query_ierr)
   if (errorclass == MPI_ERR_ROOT) ...
   ```
 
-- `MPI_Error_string` takes the native code.
+- Classes are valid error codes: `MPI_Error_class(class)` returns that class.
+  `MPI_Error_string` accepts raw codes and class constants or results. Both
+  queries are permitted before initialization and after finalization.
+  Mixing ABI-numbered classes with native codes is ambiguous when integers
+  collide; an input lookup cannot repair that ambiguity.
+- `MPI_ERR_LASTCODE` retains the selected header's bound. It is not guaranteed
+  to be a valid class or code and is not queried as one.
+- The optional MPI-4/5 names are `MPI_ERR_PROC_ABORTED`,
+  `MPI_ERR_VALUE_TOO_LARGE`, `MPI_ERR_SESSION`, `MPI_ERR_ERRHANDLER` and
+  `MPI_ERR_ABI`. Compile-only C/Fortran header probes select availability,
+  never vendor names, version guesses or fallback values. Native Open MPI
+  5.0.11 lacks the last two; MPICH 5.0.2 provides all five. This affects
+  parameter availability, not routine interfaces or unrelated capabilities.
+- MPI-ABI builds use standard ABI class definitions in the private module's
+  separate branch, with `mpi_abi.h` and `libmpi_abi`, not native MPICH classes.
+  Detailed codes remain implementation-specific within that namespace.
+- Status allocation failure returns native `MPI_ERR_NO_MEM` directly,
+  without normalization or treating a class as a table index.
+
+The registered `error_classes_1` test checks the common class catalog against
+the selected C header, constants as codes, idempotence and class-result strings,
+real native/provided detailed errors, and exact C message bytes and lengths.
+It never aliases a query's input code with its output error argument.
 
 ### Startup checks
 
@@ -261,7 +288,10 @@ using foreign or private integers as handles.
    identity check. Add direct family conversions if needed.
 3. For a special integer, export the native value from `src/mpi_constants.c`
    and translate it where it is passed or returned.
-4. Extend the constant-expression/native-C regression and behavior tests.
+4. For an error class, export its native header definition and add its standard
+   ABI declaration. Probe optional names in the helper; never invent a native
+   fallback or normalize returned classes.
+5. Extend the constant-expression/native-C regression and behavior tests.
    Do not export unrelated declarations from the vendor header.
 
 ### Adding a routine
@@ -338,9 +368,6 @@ Use a native MPICH or Open MPI build for that boundary.
 
 ## Known deviations
 
-- Error codes are compared with error classes only through
-  `MPI_Error_class`. Code that compares `ierror` directly with `MPI_ERR_*`
-  works only when the native code equals the ABI class.
 - There are no user-defined error handlers or error classes.
 - The buffer of a nonblocking routine must be contiguous; the program stops
   otherwise. With the vendors' `mpi` module, the compiler may pass a

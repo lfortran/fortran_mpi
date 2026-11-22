@@ -32,9 +32,6 @@ module mpi_c_bindings
     integer(kind=MPI_HANDLE_KIND), bind(C, name="c_errhandler_table") :: c_errhandler_table(4)
     integer(kind=MPI_HANDLE_KIND), bind(C, name="c_datatype_table") :: c_datatype_table(15)
 
-    ! Native error classes, indexed by their ABI value
-    integer(c_int), bind(C, name="c_error_class_table") :: c_error_class_table(0:62)
-
     integer(c_int), bind(C, name="c_MPI_ANY_SOURCE") :: c_mpi_any_source
     integer(c_int), bind(C, name="c_MPI_ANY_TAG") :: c_mpi_any_tag
     integer(c_int), bind(C, name="c_MPI_PROC_NULL") :: c_mpi_proc_null

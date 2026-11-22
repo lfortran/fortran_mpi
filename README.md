@@ -78,11 +78,21 @@ Do not add the vendor Fortran module directory to clients' `USE mpi` path.
 The standalone and POT3D build paths use the same helper. Test outputs are
 isolated under `build/`; untracked source/test files are never removed.
 
-The 50 handle/status/special-rank parameters come from the selected headers
-and remain usable in constant expressions before `MPI_Init`. The other 77
-scalar parameters, including error classes, retain their existing normalized
-conventions. Classify native error codes with `MPI_Error_class` before
-comparing them with the public `MPI_ERR_*` parameters.
+The handle/status/special-rank parameters and supported error classes come
+from the selected headers and remain usable in constant expressions before
+`MPI_Init`. Error classes, `MPI_SUCCESS` and `MPI_ERR_LASTCODE` use the same
+namespace as native error codes. `MPI_Error_class` returns the runtime's class
+unchanged; `MPI_Error_string` accepts both detailed codes and class constants
+or results. Classify detailed codes (including status errors) before comparing
+with `MPI_ERR_*`. `MPI_ERR_LASTCODE` is a bound, not a class to query.
+
+The 64 routine interfaces remain available, but newer error-class names are
+exported only when compile-only C and `mpif.h` probes agree they are present.
+The helper saves availability and diagnostics under `mpi-constant-checks/`
+in the build directory. Missing names are unavailable, never aliases or
+invented values. For example, native Open MPI 5.0.11 lacks
+`MPI_ERR_ERRHANDLER` and `MPI_ERR_ABI`, while MPICH 5.0.2 supplies both.
+Thread, comparison, split and string-capacity conventions are unchanged.
 
 Default `INTEGER` must match 32-bit C `int`/`MPI_Fint`; type-changing modes
 such as GNU `-fdefault-integer-8` are rejected. Datatype sizes and logical
@@ -101,6 +111,11 @@ The repository contains a collection of standalone tests located in the `tests/`
 native constant expressions, created/null handles, status roundtrips and
 ignore/zero-count paths. It applies only to native builds; the ordinary API
 tests still run with MPI-ABI.
+
+`error_classes_1.f90` is registered with a same-runtime C oracle for native
+and MPI-ABI builds. It checks classes as codes, self-mapping and idempotence,
+real detailed errors, and exact C message bytes and lengths, including
+permitted queries before initialization and after finalization.
 
 The optional `test-native-hdf5` task accepts a compiler and an unchanged
 `vtkhdf_h5_c_shim.c` source file. In a Pixi environment with parallel HDF5 and

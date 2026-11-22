@@ -111,6 +111,11 @@ for file in "${TEST_FILES[@]}"; do
       -o native_handle_status_oracle.o
     EXTRA_OBJECTS=(native_handle_status_oracle.o)
   fi
+  if [[ "$filename" == error_classes_1 ]]; then
+    $CC $CFLAGS -std=c11 -I"$CONDA_PREFIX/include" -c "$TEST_DIR/error_classes_oracle.c" \
+      -o error_classes_oracle.o
+    EXTRA_OBJECTS=(error_classes_oracle.o)
+  fi
   echo -e "${YELLOW}Compiling $filename...${NC}"
   $FC -I. -c "$file" -o "$filename.o"
 

@@ -4,78 +4,11 @@ module mpi
     use iso_c_binding, only: c_int, c_char, c_ptr, c_loc, c_null_ptr, c_associated
     implicit none
 
-    ! Handles, status metadata and special ranks come from the selected
-    ! runtime's headers. The remaining scalar conventions retain their
-    ! MPI-5 ABI values and are normalized at the C boundary. See doc/design.md.
-
-    integer, parameter :: MPI_SUCCESS = 0
+    ! Handles, statuses, special ranks and error classes use the selected
+    ! runtime's constants. Other scalar conventions retain their MPI-5 ABI
+    ! values and are normalized at the C boundary. See doc/design.md.
 
     integer, parameter :: MPI_INTEGER_KIND = kind(0)
-
-    ! Error classes
-    integer, parameter :: MPI_ERR_BUFFER                = 1
-    integer, parameter :: MPI_ERR_COUNT                 = 2
-    integer, parameter :: MPI_ERR_TYPE                  = 3
-    integer, parameter :: MPI_ERR_TAG                   = 4
-    integer, parameter :: MPI_ERR_COMM                  = 5
-    integer, parameter :: MPI_ERR_RANK                  = 6
-    integer, parameter :: MPI_ERR_REQUEST               = 7
-    integer, parameter :: MPI_ERR_ROOT                  = 8
-    integer, parameter :: MPI_ERR_GROUP                 = 9
-    integer, parameter :: MPI_ERR_OP                    = 10
-    integer, parameter :: MPI_ERR_TOPOLOGY              = 11
-    integer, parameter :: MPI_ERR_DIMS                  = 12
-    integer, parameter :: MPI_ERR_ARG                   = 13
-    integer, parameter :: MPI_ERR_UNKNOWN               = 14
-    integer, parameter :: MPI_ERR_TRUNCATE              = 15
-    integer, parameter :: MPI_ERR_OTHER                 = 16
-    integer, parameter :: MPI_ERR_INTERN                = 17
-    integer, parameter :: MPI_ERR_PENDING               = 18
-    integer, parameter :: MPI_ERR_IN_STATUS             = 19
-    integer, parameter :: MPI_ERR_ACCESS                = 20
-    integer, parameter :: MPI_ERR_AMODE                 = 21
-    integer, parameter :: MPI_ERR_ASSERT                = 22
-    integer, parameter :: MPI_ERR_BAD_FILE              = 23
-    integer, parameter :: MPI_ERR_BASE                  = 24
-    integer, parameter :: MPI_ERR_CONVERSION            = 25
-    integer, parameter :: MPI_ERR_DISP                  = 26
-    integer, parameter :: MPI_ERR_DUP_DATAREP           = 27
-    integer, parameter :: MPI_ERR_FILE_EXISTS           = 28
-    integer, parameter :: MPI_ERR_FILE_IN_USE           = 29
-    integer, parameter :: MPI_ERR_FILE                  = 30
-    integer, parameter :: MPI_ERR_INFO_KEY              = 31
-    integer, parameter :: MPI_ERR_INFO_NOKEY            = 32
-    integer, parameter :: MPI_ERR_INFO_VALUE            = 33
-    integer, parameter :: MPI_ERR_INFO                  = 34
-    integer, parameter :: MPI_ERR_IO                    = 35
-    integer, parameter :: MPI_ERR_KEYVAL                = 36
-    integer, parameter :: MPI_ERR_LOCKTYPE              = 37
-    integer, parameter :: MPI_ERR_NAME                  = 38
-    integer, parameter :: MPI_ERR_NO_MEM                = 39
-    integer, parameter :: MPI_ERR_NOT_SAME              = 40
-    integer, parameter :: MPI_ERR_NO_SPACE              = 41
-    integer, parameter :: MPI_ERR_NO_SUCH_FILE          = 42
-    integer, parameter :: MPI_ERR_PORT                  = 43
-    integer, parameter :: MPI_ERR_QUOTA                 = 44
-    integer, parameter :: MPI_ERR_READ_ONLY             = 45
-    integer, parameter :: MPI_ERR_RMA_ATTACH            = 46
-    integer, parameter :: MPI_ERR_RMA_CONFLICT          = 47
-    integer, parameter :: MPI_ERR_RMA_RANGE             = 48
-    integer, parameter :: MPI_ERR_RMA_SHARED            = 49
-    integer, parameter :: MPI_ERR_RMA_SYNC              = 50
-    integer, parameter :: MPI_ERR_SERVICE               = 51
-    integer, parameter :: MPI_ERR_SIZE                  = 52
-    integer, parameter :: MPI_ERR_SPAWN                 = 53
-    integer, parameter :: MPI_ERR_UNSUPPORTED_DATAREP   = 54
-    integer, parameter :: MPI_ERR_UNSUPPORTED_OPERATION = 55
-    integer, parameter :: MPI_ERR_WIN                   = 56
-    integer, parameter :: MPI_ERR_RMA_FLAVOR            = 57
-    integer, parameter :: MPI_ERR_PROC_ABORTED          = 58
-    integer, parameter :: MPI_ERR_VALUE_TOO_LARGE       = 59
-    integer, parameter :: MPI_ERR_SESSION               = 60
-    integer, parameter :: MPI_ERR_ERRHANDLER            = 61
-    integer, parameter :: MPI_ERR_ABI                   = 62
-    integer, parameter :: MPI_ERR_LASTCODE = 16383
 
     ! Thread levels
     integer, parameter :: MPI_THREAD_SINGLE = 0
@@ -111,7 +44,7 @@ module mpi
     private :: rank_f2c, rank_c2f, tag_f2c, tag_c2f, thread_level_f2c, thread_level_c2f
     private :: split_type_f2c, color_f2c, count_c2f, index_c2f, comparison_c2f
     private :: status_c2f, status_f2c, c_string_to_fortran, set_ierror
-    private :: errhandler_f2c, error_class_c2f, is_status_ignore, is_statuses_ignore
+    private :: errhandler_f2c, is_status_ignore, is_statuses_ignore
     private :: in_place_or
     private :: c_int, c_char, c_ptr, c_loc, c_null_ptr, c_associated
 
@@ -274,19 +207,6 @@ module mpi
         integer, intent(in) :: errhandler
         c_errhandler = c_mpi_errhandler_f2c(errhandler)
     end function errhandler_f2c
-
-    integer function error_class_c2f(c_class) result(class)
-        use mpi_c_bindings, only: c_error_class_table
-        integer, intent(in) :: c_class
-        integer :: i
-        do i = 0, ubound(c_error_class_table, 1)
-            if (c_class == c_error_class_table(i)) then
-                class = i
-                return
-            end if
-        end do
-        class = MPI_ERR_UNKNOWN
-    end function error_class_c2f
 
     ! Ranks and tags are passed unchanged, except for the special values,
     ! which are all negative.
@@ -464,7 +384,7 @@ module mpi
 
     logical function allocate_statuses(count, storage, name, ierror) result(ok)
         use iso_c_binding, only: c_size_t
-        use mpi_c_bindings, only: c_malloc, c_sizeof_mpi_status, c_error_class_table
+        use mpi_c_bindings, only: c_malloc, c_sizeof_mpi_status
         integer, intent(in) :: count
         type(c_ptr), intent(out) :: storage
         character(*), intent(in) :: name
@@ -475,7 +395,7 @@ module mpi
         storage = c_null_ptr
         if (n <= huge(n)/stride) storage = c_malloc(n*stride)
         ok = c_associated(storage)
-        if (.not. ok) call set_ierror(c_error_class_table(MPI_ERR_NO_MEM), name, ierror)
+        if (.not. ok) call set_ierror(MPI_ERR_NO_MEM, name, ierror)
     end function allocate_statuses
 
     subroutine release_statuses(storage)
@@ -1404,14 +1324,13 @@ module mpi
     end subroutine MPI_Comm_set_errhandler
 
     subroutine MPI_Error_class(errorcode, errorclass, ierror)
-        ! Error codes are native; their classes are translated.
+        ! Classes are also valid codes in the selected C MPI domain.
         use mpi_c_bindings, only: c_mpi_error_class
         integer, intent(in) :: errorcode
         integer, intent(out) :: errorclass
         integer, optional, intent(out) :: ierror
-        integer(c_int) :: c_class, local_ierr
-        local_ierr = c_mpi_error_class(errorcode, c_class)
-        errorclass = error_class_c2f(c_class)
+        integer(c_int) :: local_ierr
+        local_ierr = c_mpi_error_class(errorcode, errorclass)
         call set_ierror(local_ierr, "MPI_Error_class", ierror)
     end subroutine MPI_Error_class
 
