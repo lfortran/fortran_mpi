@@ -57,11 +57,11 @@ fi
 PREFIX=${FORTRAN_MPI_PREFIX:-$CONDA_PREFIX}
 MPIEXEC=$PREFIX/bin/mpiexec
 
-# detect MPI implementation
+# detect MPI implementation from the selected C headers
 MPI_VERSION=$($MPIEXEC --version 2>&1)
-if echo "$MPI_VERSION" | grep -q "Open MPI"; then
+if grep -q 'OMPI_MAJOR_VERSION' "$PREFIX/include/mpi.h"; then
   MPI_TYPE="openmpi"
-elif echo "$MPI_VERSION" | grep -q "MPICH"; then
+elif grep -q 'MPICH_VERSION' "$PREFIX/include/mpi.h"; then
   MPI_TYPE="mpich"
 else
   # we don't yet support other MPI implementations
