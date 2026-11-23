@@ -171,6 +171,14 @@ small user operations for LAND/LOR/LXOR. These operations produce those exact
 literal patterns and work with the existing direct collective calls, including
 in-place and scan variants. Other logical reductions are rejected.
 
+The native operations are released by a private `MPI_COMM_SELF` attribute
+registered before binding `MPI_Init` or `MPI_Init_thread` returns. MPI deletes
+SELF attributes in reverse set order, so application finalization callbacks can
+still use the operations before this internal cleanup runs. Initialization
+failure removes the attribute and releases its key and operations immediately.
+Handle bookkeeping stays live through the callbacks and is freed only after
+C `MPI_Finalize` succeeds; that last cleanup makes no MPI calls.
+
 MPI-ABI profiles retain the ABI's Fortran datatypes. Initialization queries
 `MPI_Abi_get_fortran_info` and `MPI_Abi_get_fortran_booleans`; it supplies the
 selected compiler's properties only when unregistered. Existing registration
@@ -233,6 +241,8 @@ Standard Fortran tests also run with vendor `mpif90`.
   Test, Wait/Test arrays, owned statuses/counts and untouched guard words.
 - `logical_representation_1` checks exact literal patterns for all three
   logical operations, in-place reductions, integer(8) and double complex.
+- `finalize_callbacks_1` checks logical reductions in early and final SELF
+  delete callbacks, with both `MPI_Init` and `MPI_Init_thread` at 1/2/4 ranks.
 - Existing error-class/oracle, datatype, group, request and sentinel tests
   remain registered.
 - `test-constant-headers` poisons every vendor Fortran header name and checks

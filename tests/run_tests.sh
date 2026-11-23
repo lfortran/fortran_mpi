@@ -151,6 +151,11 @@ for file in "${TEST_FILES[@]}"; do
       -o error_classes_oracle.o
     EXTRA_OBJECTS=(error_classes_oracle.o)
   fi
+  if [[ "$filename" == finalize_callbacks_1 ]]; then
+    $CC $CFLAGS -std=c11 -I"$PREFIX/include" -c "$TEST_DIR/finalize_callbacks_oracle.c" \
+      -o finalize_callbacks_oracle.o
+    EXTRA_OBJECTS=(finalize_callbacks_oracle.o)
+  fi
   echo -e "${YELLOW}Compiling $filename...${NC}"
   $FC -I. -c "$file" -o "$filename.o"
 
@@ -159,6 +164,11 @@ for file in "${TEST_FILES[@]}"; do
       -o "$filename" -L"$PREFIX/lib" -l$MPI_LIB -Wl,-rpath,"$PREFIX/lib"
   else
     $FC "$filename.o" "${EXTRA_OBJECTS[@]}" -o "$filename"
+  fi
+
+  INIT_MODES=("")
+  if [[ "$filename" == finalize_callbacks_1 ]]; then
+    INIT_MODES=(init thread)
   fi
 
   # Test with 1, 2, and 4 ranks
@@ -175,13 +185,17 @@ for file in "${TEST_FILES[@]}"; do
       MPIEXEC_ARGS=""
     fi
 
-    echo -e "${YELLOW}Running $filename with $np MPI ranks...${NC}"
-    if ${MPIEXEC} -np $np $MPIEXEC_ARGS ./$filename; then
-      echo -e "${GREEN}Test $filename with $np MPI ranks PASSED!${NC}"
-    else
-      echo -e "${RED}Test $filename with $np MPI ranks FAILED!${NC}"
-      exit 1
-    fi
+    for init_mode in "${INIT_MODES[@]}"; do
+      TEST_ARGS=()
+      if [[ -n "$init_mode" ]]; then TEST_ARGS=("$init_mode"); fi
+      echo -e "${YELLOW}Running $filename ${init_mode:+($init_mode) }with $np MPI ranks...${NC}"
+      if ${MPIEXEC} -np $np $MPIEXEC_ARGS ./$filename "${TEST_ARGS[@]}"; then
+        echo -e "${GREEN}Test $filename ${init_mode:+($init_mode) }with $np MPI ranks PASSED!${NC}"
+      else
+        echo -e "${RED}Test $filename ${init_mode:+($init_mode) }with $np MPI ranks FAILED!${NC}"
+        exit 1
+      fi
+    done
   done
 
 done

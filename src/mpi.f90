@@ -557,15 +557,11 @@ module mpi
     end subroutine MPI_Finalized
 
     subroutine MPI_Finalize(ierr)
-        use mpi_c_bindings, only: c_mpi_finalize, c_types_finalize, c_handles_finalize
+        use mpi_c_bindings, only: c_mpi_finalize, c_handles_finalize
         integer, optional, intent(out) :: ierr
-        integer(c_int) :: local_ierr, cleanup_ierr
-        cleanup_ierr = c_types_finalize()
+        integer(c_int) :: local_ierr
         local_ierr = c_mpi_finalize()
-        if (local_ierr == MPI_SUCCESS) then
-            call c_handles_finalize()
-            local_ierr = cleanup_ierr
-        end if
+        if (local_ierr == MPI_SUCCESS) call c_handles_finalize()
         call set_ierror(local_ierr, "MPI_Finalize", ierr)
     end subroutine MPI_Finalize
 

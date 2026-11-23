@@ -10,6 +10,8 @@
 static int logical_bytes;
 static unsigned char logical_true[16], logical_false[16];
 static int owned_ops;
+static int cleanup_keyval = MPI_KEYVAL_INVALID;
+static int cleanup_attached;
 
 #if defined(MPI_ABI)
 static int register_fortran(int bytes)
@@ -100,15 +102,36 @@ static void logical_xor(void *in, void *out, int *count, MPI_Datatype *type)
 }
 #endif
 
+static int release_types(void)
+{
+    while (owned_ops) {
+        int rc = MPI_Op_free(&c_logical_op_table[owned_ops - 1]);
+        if (rc != MPI_SUCCESS) return rc;
+        --owned_ops;
+    }
+    if (cleanup_keyval != MPI_KEYVAL_INVALID) return MPI_Comm_free_keyval(&cleanup_keyval);
+    return MPI_SUCCESS;
+}
+
 int fortran_mpi_types_finalize(void)
 {
-    int rc = MPI_SUCCESS;
-    while (owned_ops) {
-        int free_rc = MPI_Op_free(&c_logical_op_table[--owned_ops]);
-        if (rc == MPI_SUCCESS) rc = free_rc;
-    }
+    /* Initialization rollback removes the attribute through its callback. */
+    if (cleanup_attached) return MPI_Comm_delete_attr(MPI_COMM_SELF, cleanup_keyval);
+    return release_types();
+}
+
+#if !defined(MPI_ABI)
+static int delete_types(MPI_Comm comm, int keyval, void *attribute, void *extra)
+{
+    (void)comm;
+    (void)keyval;
+    (void)attribute;
+    (void)extra;
+    int rc = release_types();
+    if (rc == MPI_SUCCESS) cleanup_attached = 0;
     return rc;
 }
+#endif
 
 int fortran_mpi_types_init(const int *model, int bytes, const void *truth, const void *falsity)
 {
@@ -175,5 +198,21 @@ int fortran_mpi_types_init(const int *model, int bytes, const void *truth, const
             return rc;
         }
     }
+#if !defined(MPI_ABI)
+    /* SELF attributes are deleted in reverse set order during MPI_Finalize.
+     * Register before Init/Init_thread returns, so application callbacks can
+     * still use these operations. Keep the key live for initialization rollback. */
+    int keyval;
+    int rc = MPI_Comm_create_keyval(MPI_COMM_NULL_COPY_FN, delete_types, &keyval, NULL);
+    if (rc == MPI_SUCCESS) {
+        cleanup_keyval = keyval;
+        rc = MPI_Comm_set_attr(MPI_COMM_SELF, cleanup_keyval, &owned_ops);
+        if (rc == MPI_SUCCESS) cleanup_attached = 1;
+    }
+    if (rc != MPI_SUCCESS) {
+        fortran_mpi_types_finalize();
+        return rc;
+    }
+#endif
     return MPI_SUCCESS;
 }
