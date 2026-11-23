@@ -1,18 +1,8 @@
-/*
- * C metadata for the selected runtime. Handle tables are used only to
- * verify the matching Fortran constant headers after initialization, not
- * to translate public integers. Scalar normalization and address sentinels
- * remain binding-owned. There are no MPI function wrappers here.
- */
-
+#include "mpi_internal.h"
 #include <stddef.h>
-#if defined(MPI_ABI)
-#include <mpi_abi.h>
-#else
-#include <mpi.h>
-#endif
+#include <string.h>
 
-/* Order and extents match check_predefined_handles and mpi_c_bindings. */
+/* Order and extents match the binding-owned IDs in mpi_handles.c. */
 MPI_Op c_op_table[15] = {
     MPI_OP_NULL, MPI_SUM, MPI_MIN, MPI_MAX, MPI_PROD,
     MPI_BAND, MPI_BOR, MPI_BXOR, MPI_LAND, MPI_LOR, MPI_LXOR,
@@ -40,10 +30,19 @@ MPI_Errhandler c_errhandler_table[4] = {
 };
 
 MPI_Datatype c_datatype_table[15] = {
+#if defined(MPI_ABI)
     MPI_DATATYPE_NULL, MPI_INT, MPI_FLOAT, MPI_DOUBLE, MPI_LOGICAL, MPI_INTEGER,
     MPI_REAL, MPI_DOUBLE_PRECISION, MPI_DOUBLE_COMPLEX, MPI_CHARACTER,
     MPI_INT32_T, MPI_INT64_T, MPI_REAL4, MPI_INTEGER8, MPI_REAL8,
+#else
+    /* LOGICAL is filled from the selected compiler's representation at Init. */
+    MPI_DATATYPE_NULL, MPI_INT, MPI_FLOAT, MPI_DOUBLE, MPI_DATATYPE_NULL, MPI_INT,
+    MPI_FLOAT, MPI_DOUBLE, MPI_C_DOUBLE_COMPLEX, MPI_CHAR,
+    MPI_INT32_T, MPI_INT64_T, MPI_FLOAT, MPI_INT64_T, MPI_DOUBLE,
+#endif
 };
+
+MPI_Op c_logical_op_table[3] = {MPI_LAND, MPI_LOR, MPI_LXOR};
 
 /* Integer constants. These are passed to and returned by MPI as plain
  * integers, so their native values differ between implementations. */
@@ -87,25 +86,59 @@ _Static_assert(sizeof(MPI_Comm) == sizeof(MPI_Op) &&
 _Static_assert(_Alignof(MPI_Status) <= _Alignof(max_align_t),
                "MPI_Status alignment must be supported by malloc");
 
-#if defined(MPI_ABI_VERSION)
+#if defined(MPI_ABI)
 /* Only the standard ABI has this specified all-int C status layout. */
-_Static_assert(MPI_F_STATUS_SIZE == 8 && sizeof(MPI_Status) == 8 * sizeof(int) &&
+_Static_assert(sizeof(MPI_Status) == 8 * sizeof(int) &&
                offsetof(MPI_Status, MPI_SOURCE) == 0 &&
                offsetof(MPI_Status, MPI_TAG) == sizeof(int) &&
                offsetof(MPI_Status, MPI_ERROR) == 2 * sizeof(int),
                "unsupported MPI-5 ABI status layout");
-int c_sizeof_MPI_Fint = sizeof(int);
-#else
-_Static_assert(_Generic((MPI_Fint)0, int: 1, default: 0),
-               "fortran_mpi requires MPI_Fint to be C int");
-int c_sizeof_MPI_Fint = sizeof(MPI_Fint);
 #endif
+_Static_assert(sizeof(MPI_Status) <= 8 * sizeof(int),
+               "C MPI_Status does not fit the binding's eight-integer status");
+_Static_assert(sizeof(((MPI_Status *)0)->MPI_SOURCE) == sizeof(int) &&
+               sizeof(((MPI_Status *)0)->MPI_TAG) == sizeof(int) &&
+               sizeof(((MPI_Status *)0)->MPI_ERROR) == sizeof(int),
+               "unsupported C MPI_Status public fields");
 
 int c_sizeof_int = sizeof(int);
 int c_sizeof_MPI_Status = sizeof(MPI_Status);
 int c_alignof_MPI_Status = _Alignof(MPI_Status);
-int c_MPI_F_STATUS_SIZE = MPI_F_STATUS_SIZE;
-int c_MPI_F_SOURCE = MPI_F_SOURCE;
-int c_MPI_F_TAG = MPI_F_TAG;
-int c_MPI_F_ERROR = MPI_F_ERROR;
 int c_sizeof_MPI_Comm = sizeof(MPI_Comm);
+
+static int status_public_byte(size_t i)
+{
+    const size_t offsets[3] = {offsetof(MPI_Status, MPI_SOURCE),
+                              offsetof(MPI_Status, MPI_TAG),
+                              offsetof(MPI_Status, MPI_ERROR)};
+    for (int field = 0; field < 3; ++field)
+        if (i >= offsets[field] && i < offsets[field] + sizeof(int)) return 1;
+    return 0;
+}
+
+int fortran_mpi_status_to_fortran(const MPI_Status *status, int out[8])
+{
+    const unsigned char *bytes = (const unsigned char *)status;
+    unsigned char *payload = (unsigned char *)(out + 3);
+    size_t j = 0;
+    memset(out, 0, 8 * sizeof(int));
+    out[0] = status->MPI_SOURCE;
+    out[1] = status->MPI_TAG;
+    out[2] = status->MPI_ERROR;
+    for (size_t i = 0; i < sizeof(*status); ++i)
+        if (!status_public_byte(i)) payload[j++] = bytes[i];
+    return MPI_SUCCESS;
+}
+
+int fortran_mpi_status_to_c(const int in[8], MPI_Status *status)
+{
+    unsigned char *bytes = (unsigned char *)status;
+    const unsigned char *payload = (const unsigned char *)(in + 3);
+    size_t j = 0;
+    for (size_t i = 0; i < sizeof(*status); ++i)
+        if (!status_public_byte(i)) bytes[i] = payload[j++];
+    status->MPI_SOURCE = in[0];
+    status->MPI_TAG = in[1];
+    status->MPI_ERROR = in[2];
+    return MPI_SUCCESS;
+}

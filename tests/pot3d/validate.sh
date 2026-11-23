@@ -4,7 +4,7 @@ set -ex
 POT3D_HOME=$PWD
 # we can provide first argument to decide which test case we want to run to validate.sh script
 TEST="${1:-validation}"
-MPIEXEC=${CONDA_PREFIX}/bin/mpiexec
+MPIEXEC=${FORTRAN_MPI_PREFIX:-$CONDA_PREFIX}/bin/mpiexec
 
 cp ${POT3D_HOME}/testsuite/${TEST}/input/* ${POT3D_HOME}/testsuite/${TEST}/run/
 cd ${POT3D_HOME}/testsuite/${TEST}/run

@@ -11,11 +11,16 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 USE_WRAPPERS=1
+LIST_TESTS=0
 # Process command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
         --without-wrappers)
             USE_WRAPPERS=0
+            shift
+            ;;
+        --list-tests)
+            LIST_TESTS=1
             shift
             ;;
         *)
@@ -25,7 +30,32 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-MPIEXEC=${CONDA_PREFIX}/bin/mpiexec
+test_is_applicable() {
+    case "$1" in
+        native_handle_status_1)
+            [[ $USE_WRAPPERS -eq 0 && -z "${MPI_ABI:-}" &&
+                " ${MPI_DEFS:-} " != *"-DMPI_ABI"* ]] ;;
+        adapter_lifecycle_1|owned_handle_status_1)
+            [[ $USE_WRAPPERS -eq 1 ]] ;;
+        *) return 0 ;;
+    esac
+}
+
+# Report the actual selection without building or starting MPI.
+if [[ $LIST_TESTS -eq 1 ]]; then
+    TEST_FILES=("$@")
+    if [[ $# -eq 0 ]]; then TEST_FILES=( *.f90 ); fi
+    for file in "${TEST_FILES[@]}"; do
+        filename=$(basename "$file" .f90)
+        if [[ -f "$file" ]] && test_is_applicable "$filename"; then
+            printf '%s.f90\n' "$filename"
+        fi
+    done
+    exit 0
+fi
+
+PREFIX=${FORTRAN_MPI_PREFIX:-$CONDA_PREFIX}
+MPIEXEC=$PREFIX/bin/mpiexec
 
 # detect MPI implementation
 MPI_VERSION=$($MPIEXEC --version 2>&1)
@@ -42,9 +72,9 @@ fi
 
 
 if [ $USE_WRAPPERS -eq 0 ]; then
-  FC="$CONDA_PREFIX/bin/mpif90"
+  FC="$PREFIX/bin/mpif90"
 fi
-CC=${CC:-$CONDA_PREFIX/bin/mpicc}
+CC=${CC:-$PREFIX/bin/mpicc}
 
 # Define preprocessor flags based on MPI type
 FC_FLAGS=""
@@ -101,18 +131,23 @@ for file in "${TEST_FILES[@]}"; do
   fi
 
   filename=$(basename "$file" .f90)
+  if ! test_is_applicable "$filename"; then
+    echo "$filename is not applicable to this binding mode."
+    continue
+  fi
   EXTRA_OBJECTS=()
   if [[ "$filename" == native_handle_status_1 ]]; then
-    if [[ "$MPI_LIB" == mpi_abi ]]; then
-      echo "native_handle_status_1 tests native MPI_Fint, not MPI-5 ABI serialization"
-      continue
-    fi
-    $CC -std=c11 -I"$CONDA_PREFIX/include" -c "$TEST_DIR/native_handle_status_oracle.c" \
+    $CC -std=c11 -I"$PREFIX/include" -c "$TEST_DIR/native_handle_status_oracle.c" \
       -o native_handle_status_oracle.o
     EXTRA_OBJECTS=(native_handle_status_oracle.o)
   fi
+  if [[ "$filename" == adapter_lifecycle_1 ]]; then
+    $CC $CFLAGS -std=c11 -I. -I"$PREFIX/include" -c "$TEST_DIR/adapter_lifecycle_oracle.c" \
+      -o adapter_lifecycle_oracle.o
+    EXTRA_OBJECTS=(adapter_lifecycle_oracle.o)
+  fi
   if [[ "$filename" == error_classes_1 ]]; then
-    $CC $CFLAGS -std=c11 -I"$CONDA_PREFIX/include" -c "$TEST_DIR/error_classes_oracle.c" \
+    $CC $CFLAGS -std=c11 -I"$PREFIX/include" -c "$TEST_DIR/error_classes_oracle.c" \
       -o error_classes_oracle.o
     EXTRA_OBJECTS=(error_classes_oracle.o)
   fi
@@ -120,8 +155,8 @@ for file in "${TEST_FILES[@]}"; do
   $FC -I. -c "$file" -o "$filename.o"
 
   if [ $USE_WRAPPERS -eq 1 ]; then
-    $FC mpi_constants.o mpi_native_constants.o mpi_c_bindings.o mpi.o "$filename.o" "${EXTRA_OBJECTS[@]}" \
-      -o "$filename" -L"$CONDA_PREFIX/lib" -l$MPI_LIB -Wl,-rpath,"$CONDA_PREFIX/lib"
+    $FC "$filename.o" "${EXTRA_OBJECTS[@]}" libfortran_mpi.a \
+      -o "$filename" -L"$PREFIX/lib" -l$MPI_LIB -Wl,-rpath,"$PREFIX/lib"
   else
     $FC "$filename.o" "${EXTRA_OBJECTS[@]}" -o "$filename"
   fi

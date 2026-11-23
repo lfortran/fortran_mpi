@@ -25,7 +25,8 @@ EXECUTABLE=$(basename "$TEST_FILE" .f90)
 TEST_OBJ="$EXECUTABLE.o"
 BUILD_DIR="$ROOT/build/${PIXI_ENVIRONMENT_NAME:-manual}/run-$(date +%Y%m%d%H%M%S)-$$"
 
-CC=${CC:-$CONDA_PREFIX/bin/mpicc}
+PREFIX=${FORTRAN_MPI_PREFIX:-$CONDA_PREFIX}
+CC=${CC:-$PREFIX/bin/mpicc}
 FC=${FC:-gfortran}
 
 echo -e "${BOLD}${CYAN}Configuration results${RESET}"
@@ -42,8 +43,8 @@ echo -e "${BLUE}Compiling $TEST_FILE with $FC...${RESET}"
 $FC -I. -c "$TEST_FILE" -o "$TEST_OBJ"
 
 echo -e "${CYAN}Linking objects to create executable: ${BOLD}${EXECUTABLE}${RESET}"
-$FC mpi_constants.o mpi_native_constants.o mpi_c_bindings.o mpi.o "$TEST_OBJ" \
-    -o "$EXECUTABLE" -L"$CONDA_PREFIX/lib" -l"$MPI_LIB" -Wl,-rpath,"$CONDA_PREFIX/lib"
+$FC "$TEST_OBJ" libfortran_mpi.a \
+    -o "$EXECUTABLE" -L"$PREFIX/lib" -l"$MPI_LIB" -Wl,-rpath,"$PREFIX/lib"
 
 echo -e "${BOLD}${GREEN}Running in $BUILD_DIR:${RESET} ${YELLOW}mpiexec ${MPI_ARGS[*]} ./$EXECUTABLE${RESET}"
-"$CONDA_PREFIX/bin/mpiexec" "${MPI_ARGS[@]}" ./"$EXECUTABLE"
+"$PREFIX/bin/mpiexec" "${MPI_ARGS[@]}" ./"$EXECUTABLE"

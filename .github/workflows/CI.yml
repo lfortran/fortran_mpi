@@ -77,6 +77,13 @@ jobs:
       - name: Test
         run: pixi run -e $ENV test "${{ matrix.fc }}"
 
+      # MPICH 5.0.2 has a native return-before-termination race (#7716).
+      # Do not claim its ordinary success-only suite qualifies MPI_Abort.
+      - name: Strict intentional abort with native C control
+        if: runner.os == 'Linux' && matrix.mpi == 'openmpi'
+        timeout-minutes: 10
+        run: pixi run --locked -e $ENV test-abort "${{ matrix.fc }}"
+
       - name: Test with ${{ matrix.opt }}
         run: pixi run -e $ENV test "${{ matrix.fc }} ${{ matrix.opt }}"
 
@@ -93,3 +100,32 @@ jobs:
         run: |
           [ -z "$STACK" ] || ulimit -s $STACK
           pixi run -e $ENV $POT3D "${{ matrix.fc }} ${{ matrix.opt }}"
+
+  hdf5:
+    name: Provided HDF5, ${{ matrix.compiler }}, ${{ matrix.mpi }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gfortran, lfortran]
+        mpi: [mpich, openmpi]
+        include:
+          - compiler: gfortran
+            flags: -cpp
+          - compiler: lfortran
+            flags: --cpp
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: prefix-dev/setup-pixi@v0.10.1
+        with:
+          pixi-version: v0.76.1
+          cache: true
+          locked: true
+          environments: ${{ matrix.compiler }}-${{ matrix.mpi }} hdf5-${{ matrix.mpi }}
+
+      - name: Public adapter and matching native HDF5
+        run: |
+          pixi run --locked -e hdf5-${{ matrix.mpi }} test-provided-hdf5 \
+            "$PWD/.pixi/envs/${{ matrix.compiler }}-${{ matrix.mpi }}/bin/${{ matrix.compiler }} ${{ matrix.flags }}"

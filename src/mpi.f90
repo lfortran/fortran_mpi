@@ -4,9 +4,8 @@ module mpi
     use iso_c_binding, only: c_int, c_char, c_ptr, c_loc, c_null_ptr, c_associated
     implicit none
 
-    ! Handles, statuses, special ranks and error classes use the selected
-    ! runtime's constants. Other scalar conventions retain their MPI-5 ABI
-    ! values and are normalized at the C boundary. See doc/design.md.
+    ! Handles and statuses are binding-owned. Error codes/classes belong to
+    ! the selected C MPI; other scalars are normalized at the C boundary.
 
     integer, parameter :: MPI_INTEGER_KIND = kind(0)
 
@@ -37,10 +36,13 @@ module mpi
     integer, target :: MPI_STATUS_IGNORE(MPI_STATUS_SIZE)
     integer, target :: MPI_STATUSES_IGNORE(MPI_STATUS_SIZE, 1)
 
-    private :: check_native_mpi, check_predefined_handles, check_handle
+    integer, private, parameter :: comm_family = 1, group_family = 2, request_family = 3, &
+        type_family = 4, op_family = 5, info_family = 6, errhandler_family = 7
+    private :: check_native_mpi, initialize_binding, valid_handles, valid_reduction
+    private :: handle_f2c, reserve_handle, save_handle, update_handle, null_handle
     private :: allocate_statuses, release_statuses, status_at
-    private :: op_f2c, comm_f2c, comm_c2f, group_f2c, group_c2f, info_f2c
-    private :: request_f2c, request_c2f, datatype_f2c, datatype_c2f
+    private :: op_f2c, comm_f2c, group_f2c, info_f2c
+    private :: request_f2c, datatype_f2c
     private :: rank_f2c, rank_c2f, tag_f2c, tag_c2f, thread_level_f2c, thread_level_c2f
     private :: split_type_f2c, color_f2c, count_c2f, index_c2f, comparison_c2f
     private :: status_c2f, status_f2c, c_string_to_fortran, set_ierror
@@ -50,16 +52,11 @@ module mpi
 
     contains
 
-    ! All public handles use the runtime's own integer representation,
-    ! including predefined, created and null handles.
-
     subroutine check_native_mpi()
         ! Checks that this library was compiled for the MPI library it is
         ! linked with. Called before MPI is initialized.
-        use mpi_c_bindings, only: c_sizeof_mpi_comm, c_sizeof_int, c_sizeof_mpi_fint, &
-            c_mpi_f_status_size, c_mpi_f_source, c_mpi_f_tag, c_mpi_f_error, &
-            c_mpi_max_object_name, c_mpi_max_error_string, c_mpi_max_processor_name, &
-            c_mpi_any_source, c_mpi_any_tag, c_mpi_proc_null, c_mpi_root, c_mpi_undefined
+        use mpi_c_bindings, only: c_sizeof_mpi_comm, c_sizeof_int, &
+            c_mpi_max_object_name, c_mpi_max_error_string, c_mpi_max_processor_name
         if (c_sizeof_mpi_comm /= MPI_HANDLE_KIND) then
             print *, "fortran_mpi: compiled with MPI_HANDLE_KIND =", MPI_HANDLE_KIND, &
                 "but the MPI library's handles have", c_sizeof_mpi_comm, "bytes."
@@ -67,17 +64,8 @@ module mpi
                 " or with -DMPI_ABI for the MPI-5 ABI (libmpi_abi)."
             error stop 1
         end if
-        if (kind(0) /= c_int .or. storage_size(0)/8 /= c_sizeof_int .or. &
-                c_sizeof_int /= c_sizeof_mpi_fint) then
-            print *, "fortran_mpi: default INTEGER, C int and MPI handle integers must match."
-            error stop 1
-        end if
-        if (MPI_STATUS_SIZE /= c_mpi_f_status_size .or. MPI_SOURCE /= c_mpi_f_source + 1 .or. &
-                MPI_TAG /= c_mpi_f_tag + 1 .or. MPI_ERROR /= c_mpi_f_error + 1 .or. &
-                MPI_ANY_SOURCE /= c_mpi_any_source .or. MPI_ANY_TAG /= c_mpi_any_tag .or. &
-                MPI_PROC_NULL /= c_mpi_proc_null .or. MPI_ROOT /= c_mpi_root .or. &
-                MPI_UNDEFINED /= c_mpi_undefined) then
-            print *, "fortran_mpi: mismatched MPI constant headers; rebuild with the matching mpif.h and mpi.h."
+        if (kind(0) /= c_int .or. storage_size(0)/8 /= c_sizeof_int) then
+            print *, "fortran_mpi: default INTEGER and C int must match."
             error stop 1
         end if
         if (c_mpi_max_object_name > MPI_MAX_OBJECT_NAME) then
@@ -97,115 +85,154 @@ module mpi
         end if
     end subroutine check_native_mpi
 
-    subroutine check_handle(native, expected, family)
-        integer, intent(in) :: native, expected
-        character(*), intent(in) :: family
-        if (native /= expected) then
-            print *, "fortran_mpi: mismatched predefined ", family, " handle:", expected, "expected", native
-            print *, "Rebuild with the MPI library's matching constant headers."
-            error stop 1
+    subroutine initialize_binding(ierror)
+        use iso_c_binding, only: c_int8_t, c_int64_t, c_float, c_double, c_double_complex
+        use mpi_c_bindings, only: c_types_init, c_types_finalize, c_handles_init
+        integer(c_int), intent(out) :: ierror
+        integer, parameter :: bytes = storage_size(.true.)/8
+        integer(c_int8_t) :: truth(bytes), falsity(bytes)
+        integer(c_int), parameter :: model(*) = [storage_size(0)/8, radix(0), digits(0), &
+            storage_size(0_8)/8, digits(0_8), storage_size(0.0)/8, radix(0.0), digits(0.0), &
+            minexponent(0.0), maxexponent(0.0), storage_size(0.d0)/8, radix(0.d0), digits(0.d0), &
+            minexponent(0.d0), maxexponent(0.d0), storage_size((0.d0, 0.d0))/8, storage_size('a')/8]
+        integer(c_int) :: cleanup_ierror
+        if (kind(0) /= c_int .or. kind(0_8) /= c_int64_t .or. kind(0.0) /= c_float .or. &
+                kind(0.d0) /= c_double .or. kind((0.d0, 0.d0)) /= c_double_complex .or. &
+                kind('a') /= c_char) then
+            print *, "fortran_mpi: selected compiler kinds do not match the C datatype contract."
+            ierror = MPI_ERR_TYPE
+            return
         end if
-    end subroutine check_handle
+        truth = transfer(.true., truth)
+        falsity = transfer(.false., falsity)
+        ierror = c_types_init(model, bytes, truth, falsity)
+        if (ierror == MPI_SUCCESS) then
+            ierror = c_handles_init()
+            if (ierror /= MPI_SUCCESS) cleanup_ierror = c_types_finalize()
+        end if
+    end subroutine initialize_binding
 
-    subroutine check_predefined_handles()
-        ! Conversions are legal only after initialization. In ABI mode these
-        ! toint calls also register predefined handles before any fromint.
-        use mpi_c_bindings, only: c_op_table, c_comm_table, c_group_table, c_info_table, &
-            c_request_table, c_datatype_table, c_errhandler_table, c_mpi_op_c2f, &
-            c_mpi_comm_c2f, c_mpi_group_c2f, c_mpi_info_c2f, c_mpi_request_c2f, &
-            c_mpi_type_c2f, c_mpi_errhandler_c2f
-        integer, parameter :: ops(*) = [MPI_OP_NULL, MPI_SUM, MPI_MIN, MPI_MAX, MPI_PROD, &
-            MPI_BAND, MPI_BOR, MPI_BXOR, MPI_LAND, MPI_LOR, MPI_LXOR, MPI_MINLOC, MPI_MAXLOC, MPI_REPLACE, MPI_NO_OP]
-        integer, parameter :: comms(*) = [MPI_COMM_NULL, MPI_COMM_WORLD, MPI_COMM_SELF]
-        integer, parameter :: groups(*) = [MPI_GROUP_NULL, MPI_GROUP_EMPTY]
-        integer, parameter :: handlers(*) = [MPI_ERRHANDLER_NULL, MPI_ERRORS_ARE_FATAL, MPI_ERRORS_ABORT, MPI_ERRORS_RETURN]
-        integer, parameter :: types(*) = [MPI_DATATYPE_NULL, MPI_INT, MPI_FLOAT, MPI_DOUBLE, MPI_LOGICAL, &
-            MPI_INTEGER, MPI_REAL, MPI_DOUBLE_PRECISION, MPI_DOUBLE_COMPLEX, MPI_CHARACTER, &
-            MPI_INT32_T, MPI_INT64_T, MPI_REAL4, MPI_INTEGER8, MPI_REAL8]
-        integer :: i
-        do i = 1, size(ops)
-            call check_handle(c_mpi_op_c2f(c_op_table(i)), ops(i), "operation")
-        end do
-        do i = 1, size(comms)
-            call check_handle(c_mpi_comm_c2f(c_comm_table(i)), comms(i), "communicator")
-        end do
-        do i = 1, size(groups)
-            call check_handle(c_mpi_group_c2f(c_group_table(i)), groups(i), "group")
-        end do
-        call check_handle(c_mpi_info_c2f(c_info_table(1)), MPI_INFO_NULL, "info")
-        call check_handle(c_mpi_request_c2f(c_request_table(1)), MPI_REQUEST_NULL, "request")
-        do i = 1, size(handlers)
-            call check_handle(c_mpi_errhandler_c2f(c_errhandler_table(i)), handlers(i), "error handler")
-        end do
-        do i = 1, size(types)
-            call check_handle(c_mpi_type_c2f(c_datatype_table(i)), types(i), "datatype")
-        end do
-    end subroutine check_predefined_handles
+    logical function valid_handles(families, tokens, name, ierror) result(ok)
+        use mpi_c_bindings, only: c_check_handles
+        integer, intent(in) :: families(:), tokens(:)
+        character(*), intent(in) :: name
+        integer, optional, intent(out) :: ierror
+        integer(c_int) :: rc
+        rc = c_check_handles(size(tokens), families, tokens)
+        ok = rc == MPI_SUCCESS
+        if (.not. ok) call set_ierror(rc, name, ierror)
+    end function valid_handles
 
-    integer(kind=MPI_HANDLE_KIND) function op_f2c(op) result(c_op)
-        use mpi_c_bindings, only: c_mpi_op_f2c
-        integer, intent(in) :: op
-        c_op = c_mpi_op_f2c(op)
+    logical function valid_reduction(datatype, op, comm, name, ierror) result(ok)
+        integer, intent(in) :: datatype, op, comm
+        character(*), intent(in) :: name
+        integer, optional, intent(out) :: ierror
+        ok = valid_handles([type_family, op_family, comm_family], [datatype, op, comm], name, ierror)
+        if (ok .and. datatype == MPI_LOGICAL) then
+            ok = op == MPI_LAND .or. op == MPI_LOR .or. op == MPI_LXOR
+            if (.not. ok) call set_ierror(MPI_ERR_OP, name, ierror)
+        end if
+    end function valid_reduction
+
+    integer function null_handle(family) result(token)
+        integer, intent(in) :: family
+        integer, parameter :: nulls(*) = [MPI_COMM_NULL, MPI_GROUP_NULL, MPI_REQUEST_NULL, &
+            MPI_DATATYPE_NULL, MPI_OP_NULL, MPI_INFO_NULL, MPI_ERRHANDLER_NULL]
+        token = nulls(family)
+    end function null_handle
+
+    logical function reserve_handle(family, token, name, ierror) result(ok)
+        use mpi_c_bindings, only: c_reserve_handle
+        integer, intent(in) :: family
+        integer, intent(out) :: token
+        character(*), intent(in) :: name
+        integer, optional, intent(out) :: ierror
+        integer(c_int) :: rc
+        token = null_handle(family)
+        rc = c_reserve_handle(family, token)
+        ok = rc == MPI_SUCCESS
+        if (.not. ok) then
+            token = null_handle(family)
+            call set_ierror(rc, name, ierror)
+        end if
+    end function reserve_handle
+
+    subroutine save_handle(family, handle, token, ierror)
+        use mpi_c_bindings, only: c_store_handle, c_release_handle, c_discard_created
+        integer, intent(in) :: family
+        integer(kind=MPI_HANDLE_KIND), target, intent(inout) :: handle
+        integer, intent(inout) :: token
+        integer(c_int), intent(inout) :: ierror
+        integer(c_int) :: cleanup_ierror
+        if (ierror == MPI_SUCCESS) then
+            ierror = c_store_handle(family, c_loc(handle), token, 1)
+            if (ierror /= MPI_SUCCESS) cleanup_ierror = c_discard_created(family, c_loc(handle))
+        end if
+        if (ierror /= MPI_SUCCESS) then
+            call c_release_handle(family, token)
+            token = null_handle(family)
+        end if
+    end subroutine save_handle
+
+    subroutine update_handle(family, handle, token, ierror)
+        use mpi_c_bindings, only: c_update_handle
+        integer, intent(in) :: family
+        integer(kind=MPI_HANDLE_KIND), target, intent(in) :: handle
+        integer, intent(inout) :: token
+        integer(c_int), intent(inout) :: ierror
+        integer(c_int) :: rc
+        rc = c_update_handle(family, c_loc(handle), token)
+        if (ierror == MPI_SUCCESS) ierror = rc
+    end subroutine update_handle
+
+    function handle_f2c(family, token) result(handle)
+        use mpi_c_bindings, only: c_handle_to_c
+        integer, intent(in) :: family, token
+        integer(kind=MPI_HANDLE_KIND), target :: handle
+        integer(c_int) :: rc
+        ! Every caller validates its inputs before invoking any C MPI routine.
+        rc = c_handle_to_c(family, token, c_loc(handle))
+        if (rc /= MPI_SUCCESS) error stop "fortran_mpi: handle invalidated during a call"
+    end function handle_f2c
+
+    integer(kind=MPI_HANDLE_KIND) function op_f2c(op, datatype) result(c_op)
+        use mpi_c_bindings, only: c_logical_op_table
+        integer, intent(in) :: op, datatype
+        if (datatype == MPI_LOGICAL .and. op >= MPI_LAND .and. op <= MPI_LXOR) then
+            c_op = c_logical_op_table(op - MPI_LAND + 1)
+        else
+            c_op = handle_f2c(op_family, op)
+        end if
     end function op_f2c
 
     integer(kind=MPI_HANDLE_KIND) function comm_f2c(comm) result(c_comm)
-        use mpi_c_bindings, only: c_mpi_comm_f2c
         integer, intent(in) :: comm
-        c_comm = c_mpi_comm_f2c(comm)
+        c_comm = handle_f2c(comm_family, comm)
     end function comm_f2c
 
-    integer function comm_c2f(c_comm) result(comm)
-        use mpi_c_bindings, only: c_mpi_comm_c2f
-        integer(kind=MPI_HANDLE_KIND), intent(in) :: c_comm
-        comm = c_mpi_comm_c2f(c_comm)
-    end function comm_c2f
-
     integer(kind=MPI_HANDLE_KIND) function group_f2c(group) result(c_group)
-        use mpi_c_bindings, only: c_mpi_group_f2c
         integer, intent(in) :: group
-        c_group = c_mpi_group_f2c(group)
+        c_group = handle_f2c(group_family, group)
     end function group_f2c
 
-    integer function group_c2f(c_group) result(group)
-        use mpi_c_bindings, only: c_mpi_group_c2f
-        integer(kind=MPI_HANDLE_KIND), intent(in) :: c_group
-        group = c_mpi_group_c2f(c_group)
-    end function group_c2f
-
     integer(kind=MPI_HANDLE_KIND) function info_f2c(info) result(c_info)
-        use mpi_c_bindings, only: c_mpi_info_f2c
         integer, intent(in) :: info
-        c_info = c_mpi_info_f2c(info)
+        c_info = handle_f2c(info_family, info)
     end function info_f2c
 
     integer(kind=MPI_HANDLE_KIND) function request_f2c(request) result(c_request)
-        use mpi_c_bindings, only: c_mpi_request_f2c
         integer, intent(in) :: request
-        c_request = c_mpi_request_f2c(request)
+        c_request = handle_f2c(request_family, request)
     end function request_f2c
 
-    integer function request_c2f(c_request) result(request)
-        use mpi_c_bindings, only: c_mpi_request_c2f
-        integer(kind=MPI_HANDLE_KIND), intent(in) :: c_request
-        request = c_mpi_request_c2f(c_request)
-    end function request_c2f
-
     integer(kind=MPI_HANDLE_KIND) function datatype_f2c(datatype) result(c_datatype)
-        use mpi_c_bindings, only: c_mpi_type_f2c
         integer, intent(in) :: datatype
-        c_datatype = c_mpi_type_f2c(datatype)
+        c_datatype = handle_f2c(type_family, datatype)
     end function datatype_f2c
 
-    integer function datatype_c2f(c_datatype) result(datatype)
-        use mpi_c_bindings, only: c_mpi_type_c2f
-        integer(kind=MPI_HANDLE_KIND), intent(in) :: c_datatype
-        datatype = c_mpi_type_c2f(c_datatype)
-    end function datatype_c2f
-
     integer(kind=MPI_HANDLE_KIND) function errhandler_f2c(errhandler) result(c_errhandler)
-        use mpi_c_bindings, only: c_mpi_errhandler_f2c
         integer, intent(in) :: errhandler
-        c_errhandler = c_mpi_errhandler_f2c(errhandler)
+        c_errhandler = handle_f2c(errhandler_family, errhandler)
     end function errhandler_f2c
 
     ! Ranks and tags are passed unchanged, except for the special values,
@@ -426,8 +453,12 @@ module mpi
         integer(c_int), intent(inout) :: mpi_ierror
         integer(c_int) :: conversion_ierror
         conversion_ierror = c_mpi_status_c2f(c_status, status)
+        if (conversion_ierror == MPI_SUCCESS) then
+            status(MPI_SOURCE) = rank_c2f(status(MPI_SOURCE))
+            status(MPI_TAG) = tag_c2f(status(MPI_TAG))
+        end if
         if (conversion_ierror /= MPI_SUCCESS) then
-            call set_ierror(conversion_ierror, "MPI_Status_c2f")
+            call set_ierror(conversion_ierror, "fortran_mpi status packing")
             ! Do not hide a native completion error with a conversion error.
             if (mpi_ierror == MPI_SUCCESS) mpi_ierror = conversion_ierror
         end if
@@ -438,7 +469,11 @@ module mpi
         integer, intent(in) :: status(MPI_STATUS_SIZE)
         type(c_ptr), intent(in) :: c_status
         integer(c_int), intent(out) :: ierror
-        ierror = c_mpi_status_f2c(status, c_status)
+        integer :: native_status(MPI_STATUS_SIZE)
+        native_status = status
+        native_status(MPI_SOURCE) = rank_f2c(status(MPI_SOURCE))
+        native_status(MPI_TAG) = tag_f2c(status(MPI_TAG))
+        ierror = c_mpi_status_f2c(native_status, c_status)
     end subroutine status_f2c
 
     subroutine c_string_to_fortran(c_name, resultlen, name)
@@ -481,7 +516,7 @@ module mpi
         argc = 0
         argv = c_null_ptr
         local_ierr = c_mpi_init(argc, argv)
-        if (local_ierr == MPI_SUCCESS) call check_predefined_handles()
+        if (local_ierr == MPI_SUCCESS) call initialize_binding(local_ierr)
         call set_ierror(local_ierr, "MPI_Init", ierr)
     end subroutine MPI_Init
 
@@ -496,7 +531,7 @@ module mpi
         argc = 0
         argv = c_null_ptr
         local_ierr = c_mpi_init_thread(argc, argv, thread_level_f2c(required), c_provided)
-        if (local_ierr == MPI_SUCCESS) call check_predefined_handles()
+        if (local_ierr == MPI_SUCCESS) call initialize_binding(local_ierr)
         provided = thread_level_c2f(c_provided)
         call set_ierror(local_ierr, "MPI_Init_thread", ierr)
     end subroutine MPI_Init_thread
@@ -522,15 +557,23 @@ module mpi
     end subroutine MPI_Finalized
 
     subroutine MPI_Finalize(ierr)
-        use mpi_c_bindings, only: c_mpi_finalize
+        use mpi_c_bindings, only: c_mpi_finalize, c_types_finalize, c_handles_finalize
         integer, optional, intent(out) :: ierr
-        call set_ierror(c_mpi_finalize(), "MPI_Finalize", ierr)
+        integer(c_int) :: local_ierr, cleanup_ierr
+        cleanup_ierr = c_types_finalize()
+        local_ierr = c_mpi_finalize()
+        if (local_ierr == MPI_SUCCESS) then
+            call c_handles_finalize()
+            local_ierr = cleanup_ierr
+        end if
+        call set_ierror(local_ierr, "MPI_Finalize", ierr)
     end subroutine MPI_Finalize
 
     subroutine MPI_Abort(comm, errorcode, ierror)
         use mpi_c_bindings, only: c_mpi_abort
         integer, intent(in) :: comm, errorcode
         integer, optional, intent(out) :: ierror
+        if (.not. valid_handles([comm_family], [comm], "MPI_Abort", ierror)) return
         call set_ierror(c_mpi_abort(comm_f2c(comm), errorcode), "MPI_Abort", ierror)
     end subroutine MPI_Abort
 
@@ -565,6 +608,7 @@ module mpi
         integer, intent(in) :: comm
         integer, intent(out) :: size
         integer, optional, intent(out) :: ierror
+        if (.not. valid_handles([comm_family], [comm], "MPI_Comm_size", ierror)) return
         call set_ierror(c_mpi_comm_size(comm_f2c(comm), size), "MPI_Comm_size", ierror)
     end subroutine MPI_Comm_size
 
@@ -573,6 +617,7 @@ module mpi
         integer, intent(in) :: comm
         integer, intent(out) :: rank
         integer, optional, intent(out) :: ierror
+        if (.not. valid_handles([comm_family], [comm], "MPI_Comm_rank", ierror)) return
         call set_ierror(c_mpi_comm_rank(comm_f2c(comm), rank), "MPI_Comm_rank", ierror)
     end subroutine MPI_Comm_rank
 
@@ -582,6 +627,7 @@ module mpi
         integer, intent(out) :: result
         integer, optional, intent(out) :: ierror
         integer(c_int) :: c_result, local_ierr
+        if (.not. valid_handles([comm_family, comm_family], [comm1, comm2], "MPI_Comm_compare", ierror)) return
         local_ierr = c_mpi_comm_compare(comm_f2c(comm1), comm_f2c(comm2), c_result)
         result = comparison_c2f(c_result)
         call set_ierror(local_ierr, "MPI_Comm_compare", ierror)
@@ -594,8 +640,10 @@ module mpi
         integer, optional, intent(out) :: ierror
         integer(kind=MPI_HANDLE_KIND) :: c_group
         integer(c_int) :: local_ierr
+        if (.not. valid_handles([comm_family], [comm], "MPI_Comm_group", ierror)) return
+        if (.not. reserve_handle(group_family, group, "MPI_Comm_group", ierror)) return
         local_ierr = c_mpi_comm_group(comm_f2c(comm), c_group)
-        group = group_c2f(c_group)
+        call save_handle(group_family, c_group, group, local_ierr)
         call set_ierror(local_ierr, "MPI_Comm_group", ierror)
     end subroutine MPI_Comm_Group
 
@@ -604,6 +652,7 @@ module mpi
         integer, intent(in) :: group
         integer, intent(out) :: size
         integer, optional, intent(out) :: ierror
+        if (.not. valid_handles([group_family], [group], "MPI_Group_size", ierror)) return
         call set_ierror(c_mpi_group_size(group_f2c(group), size), "MPI_Group_size", ierror)
     end subroutine MPI_Group_size
 
@@ -613,9 +662,10 @@ module mpi
         integer, optional, intent(out) :: ierror
         integer(kind=MPI_HANDLE_KIND) :: c_group
         integer(c_int) :: local_ierr
+        if (.not. valid_handles([group_family], [group], "MPI_Group_free", ierror)) return
         c_group = group_f2c(group)
         local_ierr = c_mpi_group_free(c_group)
-        group = group_c2f(c_group)
+        call update_handle(group_family, c_group, group, local_ierr)
         call set_ierror(local_ierr, "MPI_Group_free", ierror)
     end subroutine MPI_Group_free
 
@@ -628,8 +678,10 @@ module mpi
         integer, optional, intent(out) :: ierror
         integer(kind=MPI_HANDLE_KIND) :: c_newgroup
         integer(c_int) :: local_ierr
+        if (.not. valid_handles([group_family], [group], "MPI_Group_range_incl", ierror)) return
+        if (.not. reserve_handle(group_family, newgroup, "MPI_Group_range_incl", ierror)) return
         local_ierr = c_mpi_group_range_incl(group_f2c(group), n, ranks, c_newgroup)
-        newgroup = group_c2f(c_newgroup)
+        call save_handle(group_family, c_newgroup, newgroup, local_ierr)
         call set_ierror(local_ierr, "MPI_Group_range_incl", ierror)
     end subroutine MPI_Group_range_incl
 
@@ -641,8 +693,10 @@ module mpi
         integer, optional, intent(out) :: ierror
         integer(kind=MPI_HANDLE_KIND) :: c_newcomm
         integer(c_int) :: local_ierr
+        if (.not. valid_handles([comm_family, group_family], [comm, group], "MPI_Comm_create", ierror)) return
+        if (.not. reserve_handle(comm_family, newcomm, "MPI_Comm_create", ierror)) return
         local_ierr = c_mpi_comm_create(comm_f2c(comm), group_f2c(group), c_newcomm)
-        newcomm = comm_c2f(c_newcomm)
+        call save_handle(comm_family, c_newcomm, newcomm, local_ierr)
         call set_ierror(local_ierr, "MPI_Comm_create", ierror)
     end subroutine MPI_Comm_create
 
@@ -653,8 +707,10 @@ module mpi
         integer, optional, intent(out) :: ierror
         integer(kind=MPI_HANDLE_KIND) :: c_newcomm
         integer(c_int) :: local_ierr
+        if (.not. valid_handles([comm_family], [comm], "MPI_Comm_dup", ierror)) return
+        if (.not. reserve_handle(comm_family, newcomm, "MPI_Comm_dup", ierror)) return
         local_ierr = c_mpi_comm_dup(comm_f2c(comm), c_newcomm)
-        newcomm = comm_c2f(c_newcomm)
+        call save_handle(comm_family, c_newcomm, newcomm, local_ierr)
         call set_ierror(local_ierr, "MPI_Comm_dup", ierror)
     end subroutine MPI_Comm_dup
 
@@ -664,9 +720,10 @@ module mpi
         integer, optional, intent(out) :: ierror
         integer(kind=MPI_HANDLE_KIND) :: c_comm
         integer(c_int) :: local_ierr
+        if (.not. valid_handles([comm_family], [comm], "MPI_Comm_free", ierror)) return
         c_comm = comm_f2c(comm)
         local_ierr = c_mpi_comm_free(c_comm)
-        comm = comm_c2f(c_comm)
+        call update_handle(comm_family, c_comm, comm, local_ierr)
         call set_ierror(local_ierr, "MPI_Comm_free", ierror)
     end subroutine MPI_Comm_free
 
@@ -677,8 +734,10 @@ module mpi
         integer, optional, intent(out) :: ierror
         integer(kind=MPI_HANDLE_KIND) :: c_newcomm
         integer(c_int) :: local_ierr
+        if (.not. valid_handles([comm_family], [comm], "MPI_Comm_split", ierror)) return
+        if (.not. reserve_handle(comm_family, newcomm, "MPI_Comm_split", ierror)) return
         local_ierr = c_mpi_comm_split(comm_f2c(comm), color_f2c(color), key, c_newcomm)
-        newcomm = comm_c2f(c_newcomm)
+        call save_handle(comm_family, c_newcomm, newcomm, local_ierr)
         call set_ierror(local_ierr, "MPI_Comm_split", ierror)
     end subroutine MPI_Comm_split
 
@@ -691,9 +750,11 @@ module mpi
         integer, optional, intent(out) :: ierror
         integer(kind=MPI_HANDLE_KIND) :: c_newcomm
         integer(c_int) :: local_ierr
+        if (.not. valid_handles([comm_family, info_family], [comm, info], "MPI_Comm_split_type", ierror)) return
+        if (.not. reserve_handle(comm_family, newcomm, "MPI_Comm_split_type", ierror)) return
         local_ierr = c_mpi_comm_split_type(comm_f2c(comm), split_type_f2c(split_type), key, &
             info_f2c(info), c_newcomm)
-        newcomm = comm_c2f(c_newcomm)
+        call save_handle(comm_family, c_newcomm, newcomm, local_ierr)
         call set_ierror(local_ierr, "MPI_Comm_split_type", ierror)
     end subroutine MPI_Comm_split_type
 
@@ -705,6 +766,7 @@ module mpi
         integer, optional, intent(out) :: ierror
         character(kind=c_char) :: c_name(MPI_MAX_OBJECT_NAME)
         integer(c_int) :: local_ierr
+        if (.not. valid_handles([comm_family], [comm], "MPI_Comm_get_name", ierror)) return
         local_ierr = c_mpi_comm_get_name(comm_f2c(comm), c_name, resultlen)
         call c_string_to_fortran(c_name, resultlen, comm_name)
         call set_ierror(local_ierr, "MPI_Comm_get_name", ierror)
@@ -718,6 +780,37 @@ module mpi
         integer, optional, intent(out) :: ierror
         character(kind=c_char) :: c_name(MPI_MAX_OBJECT_NAME)
         integer(c_int) :: local_ierr
+        character(MPI_MAX_OBJECT_NAME) :: predefined_name
+        if (.not. valid_handles([type_family], [datatype], "MPI_Type_get_name", ierror)) return
+        ! Native C-only types may share storage with C predefined types, but
+        ! their public names and Fortran datatype identities remain distinct.
+        predefined_name = ""
+        select case (datatype)
+        case (MPI_LOGICAL)
+            predefined_name = "MPI_LOGICAL"
+        case (MPI_INTEGER)
+            predefined_name = "MPI_INTEGER"
+        case (MPI_REAL)
+            predefined_name = "MPI_REAL"
+        case (MPI_DOUBLE_PRECISION)
+            predefined_name = "MPI_DOUBLE_PRECISION"
+        case (MPI_DOUBLE_COMPLEX)
+            predefined_name = "MPI_DOUBLE_COMPLEX"
+        case (MPI_CHARACTER)
+            predefined_name = "MPI_CHARACTER"
+        case (MPI_REAL4)
+            predefined_name = "MPI_REAL4"
+        case (MPI_INTEGER8)
+            predefined_name = "MPI_INTEGER8"
+        case (MPI_REAL8)
+            predefined_name = "MPI_REAL8"
+        end select
+        if (len_trim(predefined_name) > 0) then
+            type_name = predefined_name
+            resultlen = len_trim(predefined_name)
+            call set_ierror(MPI_SUCCESS, "MPI_Type_get_name", ierror)
+            return
+        end if
         local_ierr = c_mpi_type_get_name(datatype_f2c(datatype), c_name, resultlen)
         call c_string_to_fortran(c_name, resultlen, type_name)
         call set_ierror(local_ierr, "MPI_Type_get_name", ierror)
@@ -734,11 +827,13 @@ module mpi
         integer, optional, intent(out) :: ierror
         integer(c_int) :: reorder_c, periods_c(ndims), local_ierr
         integer(kind=MPI_HANDLE_KIND) :: c_comm_cart
+        if (.not. valid_handles([comm_family], [comm_old], "MPI_Cart_create", ierror)) return
+        if (.not. reserve_handle(comm_family, comm_cart, "MPI_Cart_create", ierror)) return
         reorder_c = merge(1, 0, reorder)
         periods_c = merge(1, 0, periods)
         local_ierr = c_mpi_cart_create(comm_f2c(comm_old), ndims, dims, periods_c, reorder_c, &
             c_comm_cart)
-        comm_cart = comm_c2f(c_comm_cart)
+        call save_handle(comm_family, c_comm_cart, comm_cart, local_ierr)
         call set_ierror(local_ierr, "MPI_Cart_create", ierror)
     end subroutine MPI_Cart_create
 
@@ -748,6 +843,7 @@ module mpi
         integer, intent(in) :: rank, maxdims
         integer, intent(out) :: coords(maxdims)
         integer, optional, intent(out) :: ierror
+        if (.not. valid_handles([comm_family], [comm], "MPI_Cart_coords", ierror)) return
         call set_ierror(c_mpi_cart_coords(comm_f2c(comm), rank, maxdims, coords), &
             "MPI_Cart_coords", ierror)
     end subroutine MPI_Cart_coords
@@ -759,6 +855,7 @@ module mpi
         integer, intent(out) :: rank_source, rank_dest
         integer, optional, intent(out) :: ierror
         integer(c_int) :: c_rank_source, c_rank_dest, local_ierr
+        if (.not. valid_handles([comm_family], [comm], "MPI_Cart_shift", ierror)) return
         local_ierr = c_mpi_cart_shift(comm_f2c(comm), direction, disp, c_rank_source, c_rank_dest)
         rank_source = rank_c2f(c_rank_source)
         rank_dest = rank_c2f(c_rank_dest)
@@ -782,9 +879,11 @@ module mpi
         integer(c_int), target :: remain_dims_c(size(remain_dims))
         integer(kind=MPI_HANDLE_KIND) :: c_newcomm
         integer(c_int) :: local_ierr
+        if (.not. valid_handles([comm_family], [comm], "MPI_Cart_sub", ierror)) return
+        if (.not. reserve_handle(comm_family, newcomm, "MPI_Cart_sub", ierror)) return
         remain_dims_c = merge(1, 0, remain_dims)
         local_ierr = c_mpi_cart_sub(comm_f2c(comm), c_loc(remain_dims_c), c_newcomm)
-        newcomm = comm_c2f(c_newcomm)
+        call save_handle(comm_family, c_newcomm, newcomm, local_ierr)
         call set_ierror(local_ierr, "MPI_Cart_sub", ierror)
     end subroutine MPI_Cart_sub
 
@@ -794,6 +893,7 @@ module mpi
         use mpi_c_bindings, only: c_mpi_barrier
         integer, intent(in) :: comm
         integer, intent(out), optional :: ierror
+        if (.not. valid_handles([comm_family], [comm], "MPI_Barrier", ierror)) return
         call set_ierror(c_mpi_barrier(comm_f2c(comm)), "MPI_Barrier", ierror)
     end subroutine MPI_Barrier
 
@@ -805,6 +905,7 @@ module mpi
         integer(kind=MPI_HANDLE_KIND) :: c_request
         type(c_ptr) :: c_status
         integer(c_int) :: local_ierr
+        if (.not. valid_handles([request_family], [request], "MPI_Wait", ierror)) return
         c_request = request_f2c(request)
         if (is_status_ignore(status)) then
             local_ierr = c_mpi_wait(c_request, c_mpi_status_ignore)
@@ -814,7 +915,7 @@ module mpi
             if (local_ierr == MPI_SUCCESS) call status_c2f(c_status, status, local_ierr)
             call release_statuses(c_status)
         end if
-        request = request_c2f(c_request)
+        call update_handle(request_family, c_request, request, local_ierr)
         call set_ierror(local_ierr, "MPI_Wait", ierror)
     end subroutine MPI_Wait
 
@@ -828,6 +929,7 @@ module mpi
         type(c_ptr) :: c_statuses
         integer(c_int) :: local_ierr
         integer :: i
+        if (.not. valid_handles([(request_family, i=1,count)], array_of_requests, "MPI_Waitall", ierror)) return
         do i = 1, count
             c_requests(i) = request_f2c(array_of_requests(i))
         end do
@@ -844,7 +946,7 @@ module mpi
             call release_statuses(c_statuses)
         end if
         do i = 1, count
-            array_of_requests(i) = request_c2f(c_requests(i))
+            call update_handle(request_family, c_requests(i), array_of_requests(i), local_ierr)
         end do
         call set_ierror(local_ierr, "MPI_Waitall", ierror)
     end subroutine MPI_Waitall
@@ -858,6 +960,7 @@ module mpi
         integer(kind=MPI_HANDLE_KIND) :: c_request
         type(c_ptr) :: c_status
         integer(c_int) :: c_flag, local_ierr
+        if (.not. valid_handles([request_family], [request], "MPI_Test", ierror)) return
         c_request = request_f2c(request)
         if (is_status_ignore(status)) then
             local_ierr = c_mpi_test(c_request, c_flag, c_mpi_status_ignore)
@@ -868,7 +971,7 @@ module mpi
             call release_statuses(c_status)
         end if
         flag = (c_flag /= 0)
-        request = request_c2f(c_request)
+        call update_handle(request_family, c_request, request, local_ierr)
         call set_ierror(local_ierr, "MPI_Test", ierror)
     end subroutine MPI_Test
 
@@ -883,6 +986,7 @@ module mpi
         type(c_ptr) :: c_statuses
         integer(c_int) :: c_flag, local_ierr
         integer :: i
+        if (.not. valid_handles([(request_family, i=1,count)], array_of_requests, "MPI_Testall", ierror)) return
         do i = 1, count
             c_requests(i) = request_f2c(array_of_requests(i))
         end do
@@ -900,7 +1004,7 @@ module mpi
         end if
         flag = (c_flag /= 0)
         do i = 1, count
-            array_of_requests(i) = request_c2f(c_requests(i))
+            call update_handle(request_family, c_requests(i), array_of_requests(i), local_ierr)
         end do
         call set_ierror(local_ierr, "MPI_Testall", ierror)
     end subroutine MPI_Testall
@@ -916,6 +1020,7 @@ module mpi
         type(c_ptr) :: c_status
         integer(c_int) :: c_index, local_ierr
         integer :: i
+        if (.not. valid_handles([(request_family, i=1,count)], array_of_requests, "MPI_Waitany", ierror)) return
         do i = 1, count
             c_requests(i) = request_f2c(array_of_requests(i))
         end do
@@ -929,7 +1034,7 @@ module mpi
         end if
         index = index_c2f(c_index)
         do i = 1, count
-            array_of_requests(i) = request_c2f(c_requests(i))
+            call update_handle(request_family, c_requests(i), array_of_requests(i), local_ierr)
         end do
         call set_ierror(local_ierr, "MPI_Waitany", ierror)
     end subroutine MPI_Waitany
@@ -941,6 +1046,7 @@ module mpi
         type(*), dimension(..), contiguous, target, intent(in) :: buf
         integer, intent(in) :: count, datatype, dest, tag, comm
         integer, optional, intent(out) :: ierror
+        if (.not. valid_handles([type_family, comm_family], [datatype, comm], "MPI_Send", ierror)) return
         call set_ierror(c_mpi_send(c_loc(buf), count, datatype_f2c(datatype), rank_f2c(dest), &
             tag_f2c(tag), comm_f2c(comm)), "MPI_Send", ierror)
     end subroutine MPI_Send
@@ -950,6 +1056,7 @@ module mpi
         type(*), dimension(..), contiguous, target, intent(in) :: buf
         integer, intent(in) :: count, datatype, dest, tag, comm
         integer, optional, intent(out) :: ierror
+        if (.not. valid_handles([type_family, comm_family], [datatype, comm], "MPI_Ssend", ierror)) return
         call set_ierror(c_mpi_ssend(c_loc(buf), count, datatype_f2c(datatype), rank_f2c(dest), &
             tag_f2c(tag), comm_f2c(comm)), "MPI_Ssend", ierror)
     end subroutine MPI_Ssend
@@ -962,6 +1069,7 @@ module mpi
         integer, optional, intent(out) :: ierror
         type(c_ptr) :: c_status
         integer(c_int) :: local_ierr
+        if (.not. valid_handles([type_family, comm_family], [datatype, comm], "MPI_Recv", ierror)) return
         if (is_status_ignore(status)) then
             local_ierr = c_mpi_recv(c_loc(buf), count, datatype_f2c(datatype), rank_f2c(source), &
                 tag_f2c(tag), comm_f2c(comm), c_mpi_status_ignore)
@@ -983,12 +1091,14 @@ module mpi
         integer, optional, intent(out) :: ierror
         integer(kind=MPI_HANDLE_KIND) :: c_request
         integer(c_int) :: local_ierr
+        if (.not. valid_handles([type_family, comm_family], [datatype, comm], "MPI_Isend", ierror)) return
         if (.not. is_contiguous(buf)) then
             error stop "MPI_Isend: the buffer of a nonblocking call must be contiguous"
         end if
+        if (.not. reserve_handle(request_family, request, "MPI_Isend", ierror)) return
         local_ierr = c_mpi_isend(c_loc(buf), count, datatype_f2c(datatype), rank_f2c(dest), &
             tag_f2c(tag), comm_f2c(comm), c_request)
-        request = request_c2f(c_request)
+        call save_handle(request_family, c_request, request, local_ierr)
         call set_ierror(local_ierr, "MPI_Isend", ierror)
     end subroutine MPI_Isend
 
@@ -1000,12 +1110,14 @@ module mpi
         integer, optional, intent(out) :: ierror
         integer(kind=MPI_HANDLE_KIND) :: c_request
         integer(c_int) :: local_ierr
+        if (.not. valid_handles([type_family, comm_family], [datatype, comm], "MPI_Irecv", ierror)) return
         if (.not. is_contiguous(buf)) then
             error stop "MPI_Irecv: the buffer of a nonblocking call must be contiguous"
         end if
+        if (.not. reserve_handle(request_family, request, "MPI_Irecv", ierror)) return
         local_ierr = c_mpi_irecv(c_loc(buf), count, datatype_f2c(datatype), rank_f2c(source), &
             tag_f2c(tag), comm_f2c(comm), c_request)
-        request = request_c2f(c_request)
+        call save_handle(request_family, c_request, request, local_ierr)
         call set_ierror(local_ierr, "MPI_Irecv", ierror)
     end subroutine MPI_Irecv
 
@@ -1021,6 +1133,8 @@ module mpi
         type(c_ptr) :: c_status_ptr
         integer(c_int) :: local_ierr
         logical :: ignore
+        if (.not. valid_handles([type_family, type_family, comm_family], &
+                [sendtype, recvtype, comm], "MPI_Sendrecv", ierror)) return
         ignore = is_status_ignore(status)
         if (ignore) then
             c_status_ptr = c_mpi_status_ignore
@@ -1044,6 +1158,7 @@ module mpi
         integer, optional, intent(out) :: ierror
         type(c_ptr) :: c_status
         integer(c_int) :: local_ierr
+        if (.not. valid_handles([comm_family], [comm], "MPI_Probe", ierror)) return
         if (is_status_ignore(status)) then
             local_ierr = c_mpi_probe(rank_f2c(source), tag_f2c(tag), comm_f2c(comm), &
                 c_mpi_status_ignore)
@@ -1065,6 +1180,7 @@ module mpi
         integer, optional, intent(out) :: ierror
         type(c_ptr) :: c_status
         integer(c_int) :: c_flag, local_ierr
+        if (.not. valid_handles([comm_family], [comm], "MPI_Iprobe", ierror)) return
         if (is_status_ignore(status)) then
             local_ierr = c_mpi_iprobe(rank_f2c(source), tag_f2c(tag), comm_f2c(comm), c_flag, &
                 c_mpi_status_ignore)
@@ -1087,6 +1203,7 @@ module mpi
         integer, optional, intent(out) :: ierror
         type(c_ptr) :: c_status
         integer(c_int) :: c_count, local_ierr
+        if (.not. valid_handles([type_family], [datatype], "MPI_Get_count", ierror)) return
         if (.not. allocate_statuses(1, c_status, "MPI_Get_count", ierror)) return
         call status_f2c(status, c_status, local_ierr)
         if (local_ierr == MPI_SUCCESS) then
@@ -1104,6 +1221,7 @@ module mpi
         type(*), dimension(..), contiguous, target, intent(inout) :: buffer
         integer, intent(in) :: count, datatype, root, comm
         integer, optional, intent(out) :: ierror
+        if (.not. valid_handles([type_family, comm_family], [datatype, comm], "MPI_Bcast", ierror)) return
         call set_ierror(c_mpi_bcast(c_loc(buffer), count, datatype_f2c(datatype), rank_f2c(root), &
             comm_f2c(comm)), "MPI_Bcast", ierror)
     end subroutine MPI_Bcast
@@ -1114,8 +1232,9 @@ module mpi
         type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
         integer, intent(in) :: count, datatype, op, root, comm
         integer, optional, intent(out) :: ierror
+        if (.not. valid_reduction(datatype, op, comm, "MPI_Reduce", ierror)) return
         call set_ierror(c_mpi_reduce(in_place_or(c_loc(sendbuf)), c_loc(recvbuf), count, &
-            datatype_f2c(datatype), op_f2c(op), rank_f2c(root), comm_f2c(comm)), "MPI_Reduce", &
+            datatype_f2c(datatype), op_f2c(op, datatype), rank_f2c(root), comm_f2c(comm)), "MPI_Reduce", &
             ierror)
     end subroutine MPI_Reduce
 
@@ -1125,8 +1244,9 @@ module mpi
         type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
         integer, intent(in) :: count, datatype, op, comm
         integer, optional, intent(out) :: ierror
+        if (.not. valid_reduction(datatype, op, comm, "MPI_Allreduce", ierror)) return
         call set_ierror(c_mpi_allreduce(in_place_or(c_loc(sendbuf)), c_loc(recvbuf), count, &
-            datatype_f2c(datatype), op_f2c(op), comm_f2c(comm)), "MPI_Allreduce", ierror)
+            datatype_f2c(datatype), op_f2c(op, datatype), comm_f2c(comm)), "MPI_Allreduce", ierror)
     end subroutine MPI_Allreduce
 
     subroutine MPI_Exscan(sendbuf, recvbuf, count, datatype, op, comm, ierror)
@@ -1135,8 +1255,9 @@ module mpi
         type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
         integer, intent(in) :: count, datatype, op, comm
         integer, optional, intent(out) :: ierror
+        if (.not. valid_reduction(datatype, op, comm, "MPI_Exscan", ierror)) return
         call set_ierror(c_mpi_exscan(in_place_or(c_loc(sendbuf)), c_loc(recvbuf), count, &
-            datatype_f2c(datatype), op_f2c(op), comm_f2c(comm)), "MPI_Exscan", ierror)
+            datatype_f2c(datatype), op_f2c(op, datatype), comm_f2c(comm)), "MPI_Exscan", ierror)
     end subroutine MPI_Exscan
 
     subroutine MPI_Allgather(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, &
@@ -1146,6 +1267,8 @@ module mpi
         type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
         integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, comm
         integer, optional, intent(out) :: ierror
+        if (.not. valid_handles([type_family, type_family, comm_family], &
+                [sendtype, recvtype, comm], "MPI_Allgather", ierror)) return
         call set_ierror(c_mpi_allgather(in_place_or(c_loc(sendbuf)), sendcount, &
             datatype_f2c(sendtype), c_loc(recvbuf), recvcount, datatype_f2c(recvtype), &
             comm_f2c(comm)), "MPI_Allgather", ierror)
@@ -1159,6 +1282,8 @@ module mpi
         integer, intent(in) :: sendcount, sendtype, recvtype, root, comm
         integer, intent(in) :: recvcounts(:), displs(:)
         integer, optional, intent(out) :: ierror
+        if (.not. valid_handles([type_family, type_family, comm_family], &
+                [sendtype, recvtype, comm], "MPI_Gatherv", ierror)) return
         call set_ierror(c_mpi_gatherv(in_place_or(c_loc(sendbuf)), sendcount, &
             datatype_f2c(sendtype), c_loc(recvbuf), recvcounts, displs, datatype_f2c(recvtype), &
             rank_f2c(root), comm_f2c(comm)), "MPI_Gatherv", ierror)
@@ -1172,6 +1297,8 @@ module mpi
         integer, intent(in) :: sendcount, sendtype, recvtype, comm
         integer, intent(in) :: recvcounts(:), displs(:)
         integer, optional, intent(out) :: ierror
+        if (.not. valid_handles([type_family, type_family, comm_family], &
+                [sendtype, recvtype, comm], "MPI_Allgatherv", ierror)) return
         call set_ierror(c_mpi_allgatherv(in_place_or(c_loc(sendbuf)), sendcount, &
             datatype_f2c(sendtype), c_loc(recvbuf), recvcounts, displs, datatype_f2c(recvtype), &
             comm_f2c(comm)), "MPI_Allgatherv", ierror)
@@ -1184,6 +1311,8 @@ module mpi
         type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
         integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
         integer, optional, intent(out) :: ierror
+        if (.not. valid_handles([type_family, type_family, comm_family], &
+                [sendtype, recvtype, comm], "MPI_Scatter", ierror)) return
         call set_ierror(c_mpi_scatter(c_loc(sendbuf), sendcount, datatype_f2c(sendtype), &
             in_place_or(c_loc(recvbuf)), recvcount, datatype_f2c(recvtype), rank_f2c(root), &
                 comm_f2c(comm)), &
@@ -1197,6 +1326,8 @@ module mpi
         type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
         integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, root, comm
         integer, optional, intent(out) :: ierror
+        if (.not. valid_handles([type_family, type_family, comm_family], &
+                [sendtype, recvtype, comm], "MPI_Gather", ierror)) return
         call set_ierror(c_mpi_gather(in_place_or(c_loc(sendbuf)), sendcount, &
             datatype_f2c(sendtype), c_loc(recvbuf), recvcount, datatype_f2c(recvtype), &
             rank_f2c(root), comm_f2c(comm)), "MPI_Gather", ierror)
@@ -1210,6 +1341,8 @@ module mpi
         integer, intent(in) :: sendcounts(*), displs(*)
         integer, intent(in) :: sendtype, recvcount, recvtype, root, comm
         integer, optional, intent(out) :: ierror
+        if (.not. valid_handles([type_family, type_family, comm_family], &
+                [sendtype, recvtype, comm], "MPI_Scatterv", ierror)) return
         call set_ierror(c_mpi_scatterv(c_loc(sendbuf), sendcounts, displs, &
             datatype_f2c(sendtype), in_place_or(c_loc(recvbuf)), recvcount, &
             datatype_f2c(recvtype), rank_f2c(root), comm_f2c(comm)), "MPI_Scatterv", ierror)
@@ -1222,6 +1355,8 @@ module mpi
         type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
         integer, intent(in) :: sendcount, sendtype, recvcount, recvtype, comm
         integer, optional, intent(out) :: ierror
+        if (.not. valid_handles([type_family, type_family, comm_family], &
+                [sendtype, recvtype, comm], "MPI_Alltoall", ierror)) return
         call set_ierror(c_mpi_alltoall(in_place_or(c_loc(sendbuf)), sendcount, &
             datatype_f2c(sendtype), c_loc(recvbuf), recvcount, datatype_f2c(recvtype), &
             comm_f2c(comm)), "MPI_Alltoall", ierror)
@@ -1235,6 +1370,8 @@ module mpi
         integer, intent(in) :: sendcounts(*), sdispls(*), recvcounts(*), rdispls(*)
         integer, intent(in) :: sendtype, recvtype, comm
         integer, optional, intent(out) :: ierror
+        if (.not. valid_handles([type_family, type_family, comm_family], &
+                [sendtype, recvtype, comm], "MPI_Alltoallv", ierror)) return
         call set_ierror(c_mpi_alltoallv(in_place_or(c_loc(sendbuf)), sendcounts, sdispls, &
             datatype_f2c(sendtype), c_loc(recvbuf), recvcounts, rdispls, &
             datatype_f2c(recvtype), comm_f2c(comm)), "MPI_Alltoallv", ierror)
@@ -1246,8 +1383,9 @@ module mpi
         type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
         integer, intent(in) :: count, datatype, op, comm
         integer, optional, intent(out) :: ierror
+        if (.not. valid_reduction(datatype, op, comm, "MPI_Scan", ierror)) return
         call set_ierror(c_mpi_scan(in_place_or(c_loc(sendbuf)), c_loc(recvbuf), count, &
-            datatype_f2c(datatype), op_f2c(op), comm_f2c(comm)), "MPI_Scan", ierror)
+            datatype_f2c(datatype), op_f2c(op, datatype), comm_f2c(comm)), "MPI_Scan", ierror)
     end subroutine MPI_Scan
 
     subroutine MPI_Reduce_scatter_block(sendbuf, recvbuf, recvcount, datatype, op, comm, &
@@ -1257,8 +1395,9 @@ module mpi
         type(*), dimension(..), contiguous, target, intent(inout) :: recvbuf
         integer, intent(in) :: recvcount, datatype, op, comm
         integer, optional, intent(out) :: ierror
+        if (.not. valid_reduction(datatype, op, comm, "MPI_Reduce_scatter_block", ierror)) return
         call set_ierror(c_mpi_reduce_scatter_block(in_place_or(c_loc(sendbuf)), c_loc(recvbuf), &
-            recvcount, datatype_f2c(datatype), op_f2c(op), comm_f2c(comm)), &
+            recvcount, datatype_f2c(datatype), op_f2c(op, datatype), comm_f2c(comm)), &
             "MPI_Reduce_scatter_block", ierror)
     end subroutine MPI_Reduce_scatter_block
 
@@ -1271,8 +1410,10 @@ module mpi
         integer, optional, intent(out) :: ierror
         integer(kind=MPI_HANDLE_KIND) :: c_newtype
         integer(c_int) :: local_ierr
+        if (.not. valid_handles([type_family], [oldtype], "MPI_Type_contiguous", ierror)) return
+        if (.not. reserve_handle(type_family, newtype, "MPI_Type_contiguous", ierror)) return
         local_ierr = c_mpi_type_contiguous(count, datatype_f2c(oldtype), c_newtype)
-        newtype = datatype_c2f(c_newtype)
+        call save_handle(type_family, c_newtype, newtype, local_ierr)
         call set_ierror(local_ierr, "MPI_Type_contiguous", ierror)
     end subroutine MPI_Type_contiguous
 
@@ -1283,9 +1424,11 @@ module mpi
         integer, optional, intent(out) :: ierror
         integer(kind=MPI_HANDLE_KIND) :: c_newtype
         integer(c_int) :: local_ierr
+        if (.not. valid_handles([type_family], [oldtype], "MPI_Type_vector", ierror)) return
+        if (.not. reserve_handle(type_family, newtype, "MPI_Type_vector", ierror)) return
         local_ierr = c_mpi_type_vector(count, blocklength, stride, datatype_f2c(oldtype), &
             c_newtype)
-        newtype = datatype_c2f(c_newtype)
+        call save_handle(type_family, c_newtype, newtype, local_ierr)
         call set_ierror(local_ierr, "MPI_Type_vector", ierror)
     end subroutine MPI_Type_vector
 
@@ -1295,9 +1438,10 @@ module mpi
         integer, optional, intent(out) :: ierror
         integer(kind=MPI_HANDLE_KIND) :: c_datatype
         integer(c_int) :: local_ierr
+        if (.not. valid_handles([type_family], [datatype], "MPI_Type_commit", ierror)) return
         c_datatype = datatype_f2c(datatype)
         local_ierr = c_mpi_type_commit(c_datatype)
-        datatype = datatype_c2f(c_datatype)
+        call update_handle(type_family, c_datatype, datatype, local_ierr)
         call set_ierror(local_ierr, "MPI_Type_commit", ierror)
     end subroutine MPI_Type_commit
 
@@ -1307,9 +1451,10 @@ module mpi
         integer, optional, intent(out) :: ierror
         integer(kind=MPI_HANDLE_KIND) :: c_datatype
         integer(c_int) :: local_ierr
+        if (.not. valid_handles([type_family], [datatype], "MPI_Type_free", ierror)) return
         c_datatype = datatype_f2c(datatype)
         local_ierr = c_mpi_type_free(c_datatype)
-        datatype = datatype_c2f(c_datatype)
+        call update_handle(type_family, c_datatype, datatype, local_ierr)
         call set_ierror(local_ierr, "MPI_Type_free", ierror)
     end subroutine MPI_Type_free
 
@@ -1319,6 +1464,8 @@ module mpi
         use mpi_c_bindings, only: c_mpi_comm_set_errhandler
         integer, intent(in) :: comm, errhandler
         integer, optional, intent(out) :: ierror
+        if (.not. valid_handles([comm_family, errhandler_family], &
+                [comm, errhandler], "MPI_Comm_set_errhandler", ierror)) return
         call set_ierror(c_mpi_comm_set_errhandler(comm_f2c(comm), errhandler_f2c(errhandler)), &
             "MPI_Comm_set_errhandler", ierror)
     end subroutine MPI_Comm_set_errhandler

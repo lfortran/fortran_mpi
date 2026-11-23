@@ -2,35 +2,16 @@ module mpi_c_bindings
     use iso_c_binding, only: c_ptr, c_int
     implicit none
 
-! Select the C handle representation and serialization functions:
-! - the size of a C handle: a pointer in the MPI-5 ABI and in Open MPI,
-!   an int in MPICH;
-! - the functions that convert between C handles and Fortran integers:
-!   MPI_*_toint/fromint in the MPI-5 ABI, MPI_*_c2f/f2c otherwise.
-#if defined(MPI_ABI)
-#define MPI_HANDLE_KIND 8
-#define F2C_SUFFIX "_fromint"
-#define C2F_SUFFIX "_toint"
-#else
-#if defined(OPEN_MPI)
+! C handles stay private; only the C adapter interprets public tokens.
+#if defined(MPI_ABI) || defined(OPEN_MPI)
 #define MPI_HANDLE_KIND 8
 #else
 #define MPI_HANDLE_KIND 4
 #endif
-#define F2C_SUFFIX "_f2c"
-#define C2F_SUFFIX "_c2f"
-#endif
 
     integer, parameter :: mpi_handle_kind = MPI_HANDLE_KIND
 
-    ! Startup identity checks only; order and sizes match src/mpi_constants.c.
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_op_table") :: c_op_table(15)
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_comm_table") :: c_comm_table(3)
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_group_table") :: c_group_table(2)
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_info_table") :: c_info_table(1)
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_request_table") :: c_request_table(1)
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_errhandler_table") :: c_errhandler_table(4)
-    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_datatype_table") :: c_datatype_table(15)
+    integer(kind=MPI_HANDLE_KIND), bind(C, name="c_logical_op_table") :: c_logical_op_table(3)
 
     integer(c_int), bind(C, name="c_MPI_ANY_SOURCE") :: c_mpi_any_source
     integer(c_int), bind(C, name="c_MPI_ANY_TAG") :: c_mpi_any_tag
@@ -61,12 +42,6 @@ module mpi_c_bindings
     integer(c_int), bind(C, name="c_sizeof_MPI_Status") :: c_sizeof_mpi_status
     integer(c_int), bind(C, name="c_alignof_MPI_Status") :: c_alignof_mpi_status
     integer(c_int), bind(C, name="c_sizeof_int") :: c_sizeof_int
-    integer(c_int), bind(C, name="c_sizeof_MPI_Fint") :: c_sizeof_mpi_fint
-    integer(c_int), bind(C, name="c_MPI_F_STATUS_SIZE") :: c_mpi_f_status_size
-    integer(c_int), bind(C, name="c_MPI_F_SOURCE") :: c_mpi_f_source
-    integer(c_int), bind(C, name="c_MPI_F_TAG") :: c_mpi_f_tag
-    integer(c_int), bind(C, name="c_MPI_F_ERROR") :: c_mpi_f_error
-
     integer(c_int), bind(C, name="c_sizeof_MPI_Comm") :: c_sizeof_mpi_comm
 
     interface
@@ -83,14 +58,14 @@ module mpi_c_bindings
         end subroutine c_free
 
 #if !defined(MPI_ABI)
-        function c_mpi_status_c2f(c_status, f_status) bind(C, name="MPI_Status_c2f") result(rc)
+        function c_mpi_status_c2f(c_status, f_status) bind(C, name="fortran_mpi_status_to_fortran") result(rc)
             use iso_c_binding, only: c_ptr, c_int
             type(c_ptr), value :: c_status
             integer(c_int), intent(out) :: f_status(*)
             integer(c_int) :: rc
         end function c_mpi_status_c2f
 
-        function c_mpi_status_f2c(f_status, c_status) bind(C, name="MPI_Status_f2c") result(rc)
+        function c_mpi_status_f2c(f_status, c_status) bind(C, name="fortran_mpi_status_to_c") result(rc)
             use iso_c_binding, only: c_ptr, c_int
             integer(c_int), intent(in) :: f_status(*)
             type(c_ptr), value :: c_status
@@ -98,89 +73,66 @@ module mpi_c_bindings
         end function c_mpi_status_f2c
 #endif
 
-        function c_mpi_comm_f2c(comm_f) bind(C, name="MPI_Comm"//F2C_SUFFIX)
-            use iso_c_binding, only: c_int, c_ptr
-            integer(c_int), value :: comm_f
-            integer(kind=MPI_HANDLE_KIND) :: c_mpi_comm_f2c
-        end function c_mpi_comm_f2c
-
-        function c_mpi_comm_c2f(comm_c) bind(C, name="MPI_Comm"//C2F_SUFFIX)
-            use iso_c_binding, only: c_int, c_ptr
-            integer(kind=MPI_HANDLE_KIND), value :: comm_c
-            integer(c_int) :: c_mpi_comm_c2f
+        integer(c_int) function c_check_handles(count, families, tokens) bind(C, name="fortran_mpi_check_handles")
+            import c_int
+            integer(c_int), value :: count
+            integer(c_int), intent(in) :: families(*), tokens(*)
         end function
 
-        function c_mpi_request_c2f(request) bind(C, name="MPI_Request"//C2F_SUFFIX)
-            use iso_c_binding, only: c_int, c_ptr
-            integer(kind=MPI_HANDLE_KIND), value :: request
-            integer(c_int) :: c_mpi_request_c2f
+        integer(c_int) function c_handle_to_c(family, token, handle) bind(C, name="fortran_mpi_handle_to_c")
+            import c_int, c_ptr
+            integer(c_int), value :: family, token
+            type(c_ptr), value :: handle
         end function
 
-        function c_mpi_request_f2c(request) bind(C, name="MPI_Request"//F2C_SUFFIX)
-            use iso_c_binding, only: c_int, c_ptr
-            integer(c_int), value :: request
-            integer(kind=MPI_HANDLE_KIND) :: c_mpi_request_f2c
-        end function c_mpi_request_f2c
+        integer(c_int) function c_reserve_handle(family, token) bind(C, name="fortran_mpi_handle_reserve")
+            import c_int
+            integer(c_int), value :: family
+            integer(c_int), intent(out) :: token
+        end function
 
-        function c_mpi_op_f2c(op_f) bind(C, name="MPI_Op"//F2C_SUFFIX)
-            use iso_c_binding, only: c_ptr, c_int
-            integer(c_int), value :: op_f
-            integer(kind=MPI_HANDLE_KIND) :: c_mpi_op_f2c
-        end function c_mpi_op_f2c
+        integer(c_int) function c_store_handle(family, handle, token, acquired) bind(C, name="fortran_mpi_handle_store")
+            import c_int, c_ptr
+            integer(c_int), value :: family, acquired
+            type(c_ptr), value :: handle
+            integer(c_int), intent(inout) :: token
+        end function
 
-        function c_mpi_op_c2f(op_c) bind(C, name="MPI_Op"//C2F_SUFFIX)
-            use iso_c_binding, only: c_int
-            integer(kind=MPI_HANDLE_KIND), value :: op_c
-            integer(c_int) :: c_mpi_op_c2f
-        end function c_mpi_op_c2f
+        integer(c_int) function c_update_handle(family, handle, token) bind(C, name="fortran_mpi_handle_update")
+            import c_int, c_ptr
+            integer(c_int), value :: family
+            type(c_ptr), value :: handle
+            integer(c_int), intent(inout) :: token
+        end function
 
-        function c_mpi_errhandler_f2c(handler_f) bind(C, name="MPI_Errhandler"//F2C_SUFFIX)
-            use iso_c_binding, only: c_int
-            integer(c_int), value :: handler_f
-            integer(kind=MPI_HANDLE_KIND) :: c_mpi_errhandler_f2c
-        end function c_mpi_errhandler_f2c
+        subroutine c_release_handle(family, token) bind(C, name="fortran_mpi_handle_release")
+            import c_int
+            integer(c_int), value :: family, token
+        end subroutine
 
-        function c_mpi_errhandler_c2f(handler_c) bind(C, name="MPI_Errhandler"//C2F_SUFFIX)
-            use iso_c_binding, only: c_int
-            integer(kind=MPI_HANDLE_KIND), value :: handler_c
-            integer(c_int) :: c_mpi_errhandler_c2f
-        end function c_mpi_errhandler_c2f
+        integer(c_int) function c_discard_created(family, handle) bind(C, name="fortran_mpi_discard_created")
+            import c_int, c_ptr
+            integer(c_int), value :: family
+            type(c_ptr), value :: handle
+        end function
 
-        function c_mpi_type_f2c(datatype_f) bind(C, name="MPI_Type"//F2C_SUFFIX)
-            use iso_c_binding, only: c_int
-            integer(c_int), value :: datatype_f
-            integer(kind=MPI_HANDLE_KIND) :: c_mpi_type_f2c
-        end function c_mpi_type_f2c
+        integer(c_int) function c_handles_init() bind(C, name="fortran_mpi_handles_init")
+            import c_int
+        end function
 
-        function c_mpi_type_c2f(datatype_c) bind(C, name="MPI_Type"//C2F_SUFFIX)
-            use iso_c_binding, only: c_int
-            integer(kind=MPI_HANDLE_KIND), value :: datatype_c
-            integer(c_int) :: c_mpi_type_c2f
-        end function c_mpi_type_c2f
+        subroutine c_handles_finalize() bind(C, name="fortran_mpi_handles_finalize")
+        end subroutine
 
-        function c_mpi_info_f2c(info_f) bind(C, name="MPI_Info"//F2C_SUFFIX)
-            use iso_c_binding, only: c_int, c_ptr
-            integer(c_int), value :: info_f
-            integer(kind=MPI_HANDLE_KIND) :: c_mpi_info_f2c
-        end function c_mpi_info_f2c
+        integer(c_int) function c_types_init(model, bytes, truth, falsity) bind(C, name="fortran_mpi_types_init")
+            use iso_c_binding, only: c_int, c_int8_t
+            integer(c_int), intent(in) :: model(*)
+            integer(c_int), value :: bytes
+            integer(c_int8_t), intent(in) :: truth(*), falsity(*)
+        end function
 
-        function c_mpi_info_c2f(info_c) bind(C, name="MPI_Info"//C2F_SUFFIX)
-            use iso_c_binding, only: c_int
-            integer(kind=MPI_HANDLE_KIND), value :: info_c
-            integer(c_int) :: c_mpi_info_c2f
-        end function c_mpi_info_c2f
-
-        function c_mpi_group_f2c(group_f) bind(C, name="MPI_Group"//F2C_SUFFIX)
-            use iso_c_binding, only: c_int, c_ptr
-            integer(c_int), value :: group_f
-            integer(kind=MPI_HANDLE_KIND) :: c_mpi_group_f2c
-        end function c_mpi_group_f2c
-
-        function c_mpi_group_c2f(group_c) bind(C, name="MPI_Group"//C2F_SUFFIX)
-            use iso_c_binding, only: c_int, c_ptr
-            integer(kind=MPI_HANDLE_KIND), value :: group_c
-            integer(c_int) :: c_mpi_group_c2f
-        end function c_mpi_group_c2f
+        integer(c_int) function c_types_finalize() bind(C, name="fortran_mpi_types_finalize")
+            import c_int
+        end function
 
         function c_mpi_init(argc, argv) bind(C, name="MPI_Init")
             use iso_c_binding, only : c_int, c_ptr
@@ -759,8 +711,8 @@ contains
         integer(c_int), intent(out) :: f_status(*)
         integer(c_int), pointer :: words(:)
         ! The all-int layout is specified by the ABI and asserted in C.
-        call c_f_pointer(c_status, words, [c_mpi_f_status_size])
-        f_status(1:c_mpi_f_status_size) = words
+        call c_f_pointer(c_status, words, [8])
+        f_status(1:8) = words
         rc = 0
     end function c_mpi_status_c2f
 
@@ -769,8 +721,8 @@ contains
         integer(c_int), intent(in) :: f_status(*)
         type(c_ptr), intent(in) :: c_status
         integer(c_int), pointer :: words(:)
-        call c_f_pointer(c_status, words, [c_mpi_f_status_size])
-        words = f_status(1:c_mpi_f_status_size)
+        call c_f_pointer(c_status, words, [8])
+        words = f_status(1:8)
         rc = 0
     end function c_mpi_status_f2c
 #endif
