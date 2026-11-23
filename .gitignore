@@ -1,6 +1,7 @@
 *.mod
 *.o
 mpi_program
+/build/
 
 # pixi environments
 .pixi/*
@@ -9,7 +10,11 @@ mpi_program
 # Test executables and POT3D run outputs
 /tests/*
 !/tests/*.f90
+!/tests/*.c
 !/tests/*.sh
+!/tests/abort/
+!/tests/headers/
+!/tests/hdf5/
 !/tests/pot3d/
 /tests/pot3d/bin/*
 !/tests/pot3d/bin/empty

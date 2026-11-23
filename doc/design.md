@@ -1,98 +1,61 @@
 # Design
 
-fortran_mpi provides the Fortran `mpi` module (`use mpi`) on top of the C MPI
-library. It calls the C functions directly through `iso_c_binding`. The vendor's
-Fortran bindings are not used, and neither is a C wrapper library.
+fortran_mpi implements `use mpi` using the **C MPI interface**. Ordinary MPI
+operations are direct `BIND(C)` calls from Fortran. Small C helpers own handle
+conversion, status packing and datatype initialization; they do not wrap the
+64 MPI operations. No vendor Fortran headers, modules, conversion routines or
+MPI Fortran libraries are required by the provided binding.
 
-## Why
+## Public contract
 
-A compiled `mpi.mod` only works with the compiler that built it. The Fortran
-bindings that Open MPI and MPICH ship were compiled with one compiler, usually
-gfortran. LFortran, flang and ifx cannot use them. The C ABI of an MPI library
-does not depend on a Fortran compiler. Binding to it makes `use mpi` available
-to any Fortran compiler, with any MPI implementation.
+The existing routine signatures, buffers and scalar conventions are retained.
+Buffers are `type(*), dimension(..)`; blocking routines accept contiguous
+temporaries, while nonblocking routines require a contiguous asynchronous
+buffer. Each MPI routine has one module procedure. `mpi.f90` has no preprocessor
+branches and no compiler-specific lowering.
 
-## Principles
+Public handles are binding-owned default `INTEGER` tokens, with default
+`INTEGER` required to match 32-bit C `int`. Predefined handles are constant
+expressions, using the MPI-5 ABI predefined IDs in every profile. These are
+**not native MPI_Fint values**. Never pass a private token to native
+`MPI_Comm_f2c`, or pass native `MPI_Comm_c2f` results to this module.
 
-1. **Drop-in `use mpi`.** Existing MPI programs compile unchanged. The tests
-   are written against the MPI standard, not against this library. CI also
-   builds them with the vendor's own `mpif90` (`test-without-wrappers`), so a
-   test that passes only with our module is a wrong test.
+The same applies to the binding's eight-integer statuses: they are not vendor
+Fortran statuses. Mixing this module with vendor Fortran objects or modules
+is not an interoperability mechanism.
 
-2. **`src/mpi.f90` has no `#ifdef`.** It is the same source for every MPI
-   implementation and every platform.
+### Public C communicator adapter
 
-3. **Every constant in `src/mpi.f90` has its MPI-5 ABI value.**
-   - Handles, special integers and the status layout all use the values the
-     MPI-5 standard ABI defines (MPI 5.0, chapter 21; the values are copied
-     from `mpi.h` of [mpi-abi-stubs](https://github.com/mpi-forum/mpi-abi-stubs)).
-   - These values are compile-time constants, as the standard requires: user
-     code writes `integer, parameter :: ntype = MPI_DOUBLE_PRECISION`. They are
-     the same for every implementation.
-   - We never write a vendor's value into Fortran source.
+`src/fortran_mpi.h`, also copied to the build output directory, declares:
 
-4. **The native values come from C.** `src/mpi_constants.c` is compiled
-   against the native `<mpi.h>` and tells the Fortran code which value the MPI
-   library uses for each constant.
-   - It contains no functions, only initialized data, so it works with any MPI
-     implementation.
-   - Compiled against the MPI-5 ABI header (`mpi_abi.h`), every table is the
-     identity and every special integer is its ABI value. The file goes away
-     once every MPI library we support has the ABI.
-
-5. **Everything vendor-specific is translated at the boundary, in both
-   directions.** That covers handles, special integers and statuses. Each value
-   that crosses between Fortran and C goes through one translation function
-   (`comm_f2c`, `rank_c2f`, `status_c2f`, ...) in `src/mpi.f90`. No wrapper
-   converts values inline. A predefined handle is a lookup in a table; nothing
-   is translated with a chain of `if`s.
-
-6. **Pure Fortran.** The only C is `src/mpi_constants.c`. Every MPI function
-   is called directly from Fortran, through a `bind(C)` interface in
-   `src/mpi_c_bindings.f90` that mirrors the C prototype exactly.
-
-7. **One preprocessor block in the Fortran code.** At the top of
-   `src/mpi_c_bindings.f90`, one `#if` block selects, for each of three
-   targets:
-   - the size of a C handle: 8 bytes for the MPI-5 ABI (`-DMPI_ABI`) and Open
-     MPI (`-DOPEN_MPI`), both pointers; 4 for MPICH (`int`);
-   - the names of the 10 functions that convert handles between C and
-     Fortran integers: `MPI_*_toint`/`MPI_*_fromint` in the ABI,
-     `MPI_*_c2f`/`MPI_*_f2c` otherwise.
-
-   The block goes away once every MPI library we support has the ABI.
-   `src/mpi_constants.c` uses `#if` only to ask whether the library defines a
-   constant at all, for the error classes of MPI 4 and later.
-
-8. **One module procedure per routine.** A buffer is `type(*),
-   dimension(..)`, so every routine takes buffers of any type, kind and rank,
-   as with the vendors' `mpi` module. Each routine is a plain module
-   procedure named after it, such as `MPI_Bcast`; a generic interface is
-   only needed for a routine that dispatches on type, such as `MPI_Sizeof`.
-   Routines are added when a real code needs them (POT3D, PARALLAX, user
-   reports), together with a test.
-
-9. **Verified by running programs.**
-   - Every test runs with 1, 2 and 4 ranks.
-   - The test matrix covers 3 MPI libraries (Open MPI, MPICH, and MPICH's
-     MPI-5 ABI library `libmpi_abi`) × 4 compilers (gfortran, flang, ifx,
-     LFortran) × 2 OSes, with and without optimization.
-   - POT3D is the end-to-end test: its output is compared with reference
-     results.
-
-## Files
-
+```c
+int fortran_mpi_comm_to_c(int token, MPI_Comm *out);
+int fortran_mpi_comm_from_c(MPI_Comm comm, int *out);
 ```
-user code:  use mpi
-              │
-src/mpi.f90             module mpi: the MPI-5 ABI constants, the MPI routines
-              │         as module procedures, the translation functions
-src/mpi_c_bindings.f90  module mpi_c_bindings: bind(C) interfaces to the
-              │         C functions, bind(C) views of the tables, MPI_HANDLE_KIND
-src/mpi_constants.c     native values of the constants, as tables
-              │
-libmpi (C), from Open MPI, MPICH or any other implementation
-```
+
+Both functions return the selected C MPI's error codes, with outputs unchanged
+on error. Call them between initialization and finalization of this binding.
+
+- Export borrows the exact live C communicator; it neither duplicates nor
+  transfers ownership. A C consumer must not free it behind a live token.
+- Import registers an existing live C communicator, without duplication or
+  freeing. A successfully imported created communicator must subsequently be
+  released through this binding's `MPI_Comm_free`. If import fails, the C
+  caller retains responsibility and must clean up its object.
+- Null, WORLD and SELF have explicit mappings. Repeated conversions of a live
+  object preserve identity. Distinct congruent communicators remain distinct.
+- After free, the token must not be used. Tokens/slots may be reused; there is
+  no generation-number or persistent stale-token guarantee.
+
+The adapter, provided module, application shim and HDF5 must use **the same C
+MPI ABI and runtime**. An HDF5 setter can borrow an exported communicator;
+HDF5 duplicates it internally. A getter's newly returned duplicate can be
+imported, then freed by the Fortran caller. On failed import the shim must
+C-free that duplicate and report failure. It must not pretend the original
+raw-native-Fint shim now accepts private tokens.
+
+Native MPI and `mpi_abi.h`/`libmpi_abi` are separate ABIs, even when both were
+built by MPICH. Selecting an ABI must be explicit, not inferred from a token.
 
 ## Dimension constraints
 
@@ -103,280 +66,223 @@ On success, the results update only the selected section, not its neighbors.
 Check `ierror` before using the returned dimensions. This is a local grid
 calculation; `nnodes` need not equal the number of MPI ranks running the program.
 
-## Constants and their translation
+## Files and build artifacts
 
-The values below are what `src/mpi.f90` uses. "Native" means the value of the
-MPI library we link against.
-
-### Predefined handles
-
-These are communicators, groups, datatypes, operations, info and requests.
-The ABI gives them small integers:
-
-- `MPI_COMM_WORLD` = 257 (0x101)
-- `MPI_INTEGER` = 537 (0x219)
-- `MPI_SUM` = 33 (0x021)
-
-Each handle type has a range of values in the ABI. For each type,
-`src/mpi_constants.c` has a table over that range, filled with the native
-handles by static initializers:
-
-```c
-MPI_Comm c_comm_table[3] = {            /* ABI 0x100 .. 0x102 */
-    [0x00] = MPI_COMM_NULL,
-    [0x01] = MPI_COMM_WORLD,
-    [0x02] = MPI_COMM_SELF,
-};
+```
+mpi.f90                   public Fortran procedures and scalar normalization
+mpi_native_constants.f90  owned handle/status parameters and C error constants
+mpi_c_bindings.f90        direct C interfaces and C handle storage width
+mpi_constants.c           C tables, sizes, sentinels, owned status packing
+mpi_handles.c             typed handle bookkeeping and public communicator adapter
+mpi_serializers.c         C toint/fromint provider
+mpi_no_serializers.c      fallback provider for runtimes without those functions
+mpi_types.c               compiler datatype contract, logical operations, ABI registration
+fortran_mpi.h             public C boundary
+mpi_internal.h            private C helper interface
 ```
 
-Fortran sees the table as a `bind(C)` array. The translation looks it up:
+All entry points use `tools/build_module.sh`. Each build directory contains
+`mpi.mod`, `mpi_c_bindings.mod`, `mpi_native_constants.mod`, the public
+`fortran_mpi.h` and `libfortran_mpi.a`. Link application objects **before**
+the archive, then the matching C MPI library. `mpi-prefix` and `mpi-library`
+record that selection. Only the provided module directory goes on a client's
+`USE mpi` search path.
 
-```fortran
-if (comm >= MPI_COMM_NULL .and. comm <= MPI_COMM_NULL + ubound(c_comm_table, 1)) then
-    c_comm = c_comm_table(comm - MPI_COMM_NULL)
-else
-    c_comm = c_mpi_comm_f2c(comm - USER_HANDLE_OFFSET)
-end if
-```
+By default the MPI prefix is the active Pixi environment's `CONDA_PREFIX`.
+`FORTRAN_MPI_PREFIX=/absolute/prefix` selects an external C-only installation,
+including its headers, library and launcher, without replacing the compiler
+environment. `MPI_ABI=yes` selects the existing ABI profile. `CC` is the C
+compiler or MPI C wrapper; Fortran never receives vendor include paths.
+Do not copy module files between compilers or builds.
 
-The reverse direction (`comm_c2f`) compares the C handle with the few entries
-of the table. It is only needed for handles that MPI returns, such as a new
-communicator, which may be `MPI_COMM_NULL`. A table entry that `src/mpi.f90`
-has no constant for is left zero, which is never a valid handle.
-
-Every constant maps to the native object of the same name. For example,
-`MPI_INTEGER` is the library's `MPI_INTEGER`, not the C `MPI_INT`. So the
-library's idea of the size of a Fortran type applies. That size was fixed when
-the library was built, so the C library must have been built with Fortran
-types. Both the conda-forge Open MPI and MPICH packages are.
-
-### Handles that MPI creates
-
-Communicators, groups, requests and datatypes that MPI creates are converted
-with the native `MPI_*_c2f`, and then shifted by `USER_HANDLE_OFFSET` = 4096.
-On the way back, the offset is subtracted and the result goes through
-`MPI_*_f2c`.
-
-The offset is needed because the ABI reserves 1 .. 4095 for predefined
-handles, but native Fortran handles are not restricted to that. Open MPI's
-native Fortran handles are small indices into its tables: `MPI_REQUEST_NULL`
-is 0, and live requests are 1, 2, ... Without the offset, a program with a few
-hundred live requests would get the native handle 384, which is
-`MPI_REQUEST_NULL` in the ABI. MPICH's are large negative integers, which the
-offset does not disturb. `user_handle_c2f` stops the program if a shifted
-handle still lands in 1 .. 4095.
-
-### Special integers
-
-These include the wildcards and special ranks (`MPI_ANY_SOURCE`,
-`MPI_ANY_TAG`, `MPI_PROC_NULL`, `MPI_ROOT`, `MPI_UNDEFINED`), the thread levels,
-`MPI_COMM_TYPE_SHARED` and the results of `MPI_Comm_compare` (`MPI_IDENT`,
-...). MPI passes them as plain integers, and every implementation has its own
-values:
-
-| constant | ABI | Open MPI | MPICH |
-|---|---|---|---|
-| `MPI_ANY_SOURCE` | −1 | −1 | −2 |
-| `MPI_PROC_NULL` | −3 | −2 | −1 |
-| `MPI_THREAD_FUNNELED` | 1024 | 1 | 1 |
-| `MPI_COMM_TYPE_SHARED` | 221 | 0 | 1 |
-| `MPI_IDENT` | 201 | 0 | 0 |
-
-`src/mpi_constants.c` exports the native values (`c_MPI_PROC_NULL`, ...):
-
-- `rank_f2c` and `rank_c2f` translate ranks. Valid ranks are never negative
-  and all special ranks are, so the common case costs one comparison.
-- `tag_f2c`/`tag_c2f`, `thread_level_f2c`/`thread_level_c2f` and
-  `split_type_f2c` translate tags, thread levels and split types.
-- `comparison_c2f` translates the result of `MPI_Comm_compare`.
-- `count_c2f` translates a count that MPI returns, which may be
-  `MPI_UNDEFINED` (`MPI_Get_count`). `index_c2f` translates an index into an
-  array of requests (`MPI_Waitany`): it may be `MPI_UNDEFINED`, and otherwise
-  it counts from 0 in C and from 1 in Fortran.
-
-Every rank or tag that a wrapper passes to C goes through `rank_f2c` or
-`tag_f2c`. Every rank that comes back goes through `rank_c2f`: for example the
-neighbors from `MPI_Cart_shift`, and `status(MPI_SOURCE)`.
-
-The ABI values differ from both Open MPI and MPICH. So a translation that is
-missing fails on both implementations, and the tests catch it. Before, our
-values happened to match MPICH, and such bugs only showed with Open MPI.
-
-### Status
-
-The Fortran status has the ABI layout: `MPI_STATUS_SIZE` = 8 integers.
-`status(MPI_SOURCE)`, `status(MPI_TAG)` and `status(MPI_ERROR)` are elements
-1, 2 and 3, and elements 4 .. 8 hold the rest of the native `MPI_Status`.
-
-- Wrappers receive the native `MPI_Status` into a local buffer of
-  `MPI_STATUS_SIZE` C ints.
-- `status_c2f` copies it into the Fortran status. It finds the three public
-  fields using `offsetof`, which `src/mpi_constants.c` exports, and translates
-  the source with `rank_c2f` and the tag with `tag_c2f`. The tag is special
-  in an empty status, such as `MPI_Test` returns for `MPI_REQUEST_NULL`:
-  `MPI_ANY_TAG`.
-- `status_f2c` is the inverse, for `MPI_Get_count`, which takes a status.
-- The native `MPI_Status` is 20 bytes in MPICH and 24 in Open MPI. Both fit.
-
-We do not use the native `MPI_Status_c2f`. It writes the native Fortran
-layout: 6 integers for Open MPI, and no rank translation.
-
-`MPI_Waitall` and `MPI_Testall` receive the native statuses into one array, each
-`sizeof(MPI_Status)` bytes, and converts them one by one.
-
-### `MPI_IN_PLACE`, `MPI_STATUS_IGNORE` and `MPI_STATUSES_IGNORE`
-
-These constants are not values; the standard requires recognizing them by
-their address. Values worked badly: a buffer whose first element was -1002
-was taken as `MPI_IN_PLACE`.
-
-**`MPI_IN_PLACE`** is an `integer, target` variable.
-- Buffers are `type(*)`, so it can be passed for any buffer.
-- `in_place_or` compares the address of a buffer argument with the address
-  of `MPI_IN_PLACE`, and passes the native `MPI_IN_PLACE` to C if they match.
-  Every buffer that the standard allows to be `MPI_IN_PLACE` goes through it.
-- No data can be taken for `MPI_IN_PLACE`: another variable never has its
-  address.
-
-**`MPI_STATUS_IGNORE` and `MPI_STATUSES_IGNORE`** are integer arrays of the
-shape of a status, `(MPI_STATUS_SIZE)`, and of an array of statuses,
-`(MPI_STATUS_SIZE, 1)`.
-- `is_status_ignore` and `is_statuses_ignore` compare the address of the
-  argument with the address of the constant. If they match, the core passes
-  the native `MPI_STATUS_IGNORE` or `MPI_STATUSES_IGNORE` to C.
-- Status arguments have the `target` attribute and explicit shape, so the
-  compiler passes the actual array and does not copy it.
-- The addresses are first stored in `c_ptr` variables and then compared:
-  LFortran gets `c_associated(c_loc(a), c_loc(b))` wrong.
-
-### Errors
-
-- Error handlers are predefined handles with a table:
-  `MPI_ERRORS_ARE_FATAL`, `MPI_ERRORS_ABORT`, `MPI_ERRORS_RETURN`.
-  `MPI_Comm_set_errhandler` sets one.
-- Error codes, which MPI returns in `ierror`, are left native. They are
-  implementation-specific in the MPI-5 ABI too. Only `MPI_SUCCESS` = 0 is a
-  fixed code.
-- Error classes have their ABI values (`MPI_ERR_ROOT` = 8, ...).
-  `MPI_Error_class` translates the native class back to the ABI value through
-  the table `c_error_class_table`, so codes are compared with the classes as
-  the standard intends:
-
-  ```fortran
-  call MPI_Error_class(ierr, errorclass)
-  if (errorclass == MPI_ERR_ROOT) ...
-  ```
-
-- `MPI_Error_string` takes the native code.
-
-### Startup checks
-
-`MPI_Init` and `MPI_Init_thread` first call `check_native_mpi`. It stops the
-program with an explanation in two cases:
-
-- `MPI_HANDLE_KIND` does not match the size of a native handle. For example,
-  `src/mpi_c_bindings.f90` was compiled without `-DOPEN_MPI` for Open MPI, or
-  without `-DMPI_ABI` for `libmpi_abi`.
-  Without this check, handles would be silently truncated.
-- The native `MPI_Status`, `MPI_MAX_OBJECT_NAME`, `MPI_MAX_ERROR_STRING` or
-  `MPI_MAX_PROCESSOR_NAME` does not fit the ABI sizes.
-
-### Adding a constant
-
-1. Add the `integer, parameter` with its ABI value to `src/mpi.f90`.
-2. For a predefined handle, add the native handle to its table in
-   `src/mpi_constants.c`, at the ABI value minus the start of the range. If
-   the range is new, add a table there, its `bind(C)` view in
-   `src/mpi_c_bindings.f90`, and `*_f2c`/`*_c2f` functions in `src/mpi.f90`.
-3. For a special integer, export the native value from `src/mpi_constants.c`
-   and translate it where it is passed or returned.
-4. Add or extend a test. `tests/constants_1.f90` checks each predefined
-   datatype and communicator by its name (`MPI_Type_get_name`,
-   `MPI_Comm_get_name`).
-
-### Adding a routine
-
-1. Add a `bind(C)` interface to `src/mpi_c_bindings.f90` that mirrors the C
-   prototype exactly: handles are `integer(kind=MPI_HANDLE_KIND), value`,
-   buffers are `type(c_ptr), value`.
-2. In `src/mpi.f90`, add one module procedure with the routine's name, e.g.
-   `MPI_Bcast`.
-   - Each buffer is `type(*), dimension(..), target`, and the C function
-     gets `c_loc` of it. A buffer that may be `MPI_IN_PLACE` goes through
-     `in_place_or`.
-   - A blocking routine declares its buffers `contiguous`. The compiler then
-     passes a non-contiguous section as a contiguous copy, and copies it back
-     afterwards.
-   - A nonblocking routine cannot use a copy, because the transfer outlives
-     the call. Its buffers are `asynchronous` instead of `contiguous`, and it
-     stops with an error if `is_contiguous` is false. That is the rule of
-     the vendors' `mpi` module too.
-   - It translates every handle, rank, tag and status, both into and out of
-     the C call.
-   - It hands the error code to `set_ierror`, which stores it in the optional
-     `ierror`, or prints it if `ierror` is absent and the call failed.
-3. Add a test in `tests/`. It must also pass with the vendor's `mpif90`.
-
-```fortran
-subroutine MPI_Bcast(buffer, count, datatype, root, comm, ierror)
-    use mpi_c_bindings, only: c_mpi_bcast
-    type(*), dimension(..), contiguous, target, intent(inout) :: buffer
-    integer, intent(in) :: count, datatype, root, comm
-    integer, optional, intent(out) :: ierror
-    call set_ierror(c_mpi_bcast(c_loc(buffer), count, datatype_f2c(datatype), &
-        rank_f2c(root), comm_f2c(comm)), "MPI_Bcast", ierror)
-end subroutine MPI_Bcast
-```
-
-`type(*), dimension(..)` needs a Fortran 2018 compiler: gfortran, flang,
-ifx, or LFortran 0.69 or newer (it needs lfortran/lfortran#16101, #17132
-and #17133).
+There is no `find_package(fortran_mpi)` package. A consumer can define an
+imported static-library/interface target with the archive path, its module/
+header include directory, and the matching `MPI::MPI_C` dependency. ABI
+consumers also define `MPI_ABI` when including the public header.
 
 ## The MPI-5 ABI
 
-MPI 5.0 defines a standard C ABI (chapter 21). MPICH 5 implements it in a
-separate library, `libmpi_abi`, with the header `mpi_abi.h`. The conda-forge
-MPICH package ships both; Open MPI 5.0 does not have the ABI yet.
+The existing `*-mpich-abi` Pixi profiles select `mpi_abi.h` and `libmpi_abi`
+with `MPI_ABI=yes`/`-DMPI_ABI`, rather than the native header/library.
+The low-level Fortran interfaces use pointer-sized C handle storage in this
+profile. Canonical serialization, status layout and error constants remain
+separate from native MPICH; `mpi.f90` is shared unchanged between profiles.
+See the handle and datatype sections below for initialization and lifetime.
 
-To build against it, compile everything with `-DMPI_ABI`: MPICH's `mpi.h`
-then includes `mpi_abi.h` for `src/mpi_constants.c`, and
-`src/mpi_c_bindings.f90` selects the ABI's handle size and conversion
-functions. Link with `-lmpi_abi` instead of `-lmpi`. The `*-mpich-abi` pixi
-environments set `MPI_ABI=yes`, which makes the test and POT3D scripts do
-this.
+## Handle conversion and lifetime
 
-With the ABI:
+The C predefined tables supply real typed `MPI_Comm`, `MPI_Group`,
+`MPI_Request`, `MPI_Datatype`, `MPI_Op`, `MPI_Info` and `MPI_Errhandler` objects.
+No pointer is truncated into a Fortran token.
 
-- A C handle is pointer-sized, and a predefined one is its ABI integer
-  (`MPI_COMM_WORLD` is `(MPI_Comm)0x101`). The tables in
-  `src/mpi_constants.c` come out as the identity, and the special integers
-  as their ABI values. So ranks, tags, thread levels and statuses pass
-  through the translation functions unchanged.
-- Handles that MPI creates are converted with `MPI_*_toint`/`MPI_*_fromint`.
-  The ABI library has no `MPI_*_c2f`/`MPI_*_f2c`, because they depend on a
-  Fortran ABI, which MPI-5 does not define (§21.4).
-- MPICH's `MPI_Comm_toint(MPI_COMM_WORLD)` is 257, the ABI value, although
-  the standard does not require it. A user handle is MPICH's usual large
-  integer, so `USER_HANDLE_OFFSET` is still added, and it is harmless.
+The build compiles and links all seven C `*_toint`/`*_fromint` pairs to select
+the serialization provider. It does not infer availability from MPI_VERSION.
+In native MPICH these serialize native integer values, not canonical ABI
+predefined IDs. Predefined handles always use the binding's tables. A dynamic
+serialization is used only after a roundtrip check, outside the reserved
+0..4095 range, with explicit collision handling. Otherwise the typed map
+supplies the token. No `c2f + 4096` arithmetic remains.
 
-`src/mpi.f90` is the same source for all three targets.
+Open MPI installations without these pairs use the same small typed-object
+map without invoking serializers. In MPI-ABI mode the canonical predefined
+serializations are checked/registered before any `fromint`, and dynamic
+serializations are preserved where possible.
 
-What remains, once Open MPI ships the ABI too:
+The map grows with the high-water mark of simultaneously live objects,
+reuses retired slots and is released on finalization. It reserves a slot
+**before** a creating MPI call, so allocation failure cannot lose a new
+communicator or an active request. A failed operation releases the reservation
+without reading an undefined output; a failed registration cleans up the new
+object. Public C import is different: failure leaves the object with its caller.
 
-- Drop `src/mpi_constants.c` and the tables. The translation functions
-  become the identity for predefined handles and special integers.
-- Drop the `#if` block in `src/mpi_c_bindings.f90`: `MPI_HANDLE_KIND` is
-  `c_intptr_t`, and handles convert with `MPI_*_toint`/`MPI_*_fromint`.
-- Drop `USER_HANDLE_OFFSET`, if `MPI_*_toint` is guaranteed to keep the
-  handles MPI creates outside 1 .. 4095. MPICH's do; the standard only says
-  so for the C handles.
+Successful frees and completions retire entries. Wait/Test arrays update every
+request, preserving incomplete ones and retiring only those that became null.
+Updates compare stored typed values and never call `fromint` on an object that
+the preceding MPI call may already have freed. Immutable predefined entries,
+including `MPI_GROUP_EMPTY`, are not retired when a local variable is freed.
+Separate creating calls that return the same reference-counted C group or
+completed request retain their acquisitions until each is released; repeated
+imports alone do not add acquisitions.
+
+Registry synchronization is local and short-lived. No lock spans a blocking
+MPI operation or cleanup call. `MPI_Init_thread` still requests and reports
+the runtime's actual support level; the registry does not weaken it.
+
+## C-only datatype policy
+
+The binding validates the selected compiler, not a vendor Fortran build.
+Default integer, real, double precision, integer(8), double complex and
+character kinds must match the corresponding ISO_C_BINDING kinds. Numeric
+radix, digits, exponent ranges, storage and C MPI datatype sizes/extents are
+checked at initialization. The supported numeric model is 32-bit C integer,
+32-bit real and 64-bit double/integer(8), with interoperable double complex.
+Type-changing flags that violate this contract are rejected, not guessed.
+
+Native profiles use matching C predefined numeric datatypes. For example,
+the public `MPI_REAL4` uses C `MPI_FLOAT`, even in a genuine C-only Open MPI
+build where the vendor's `MPI_REAL4` name is absent. Public Fortran datatype
+names remain distinct and `MPI_Type_get_name` returns their binding names.
+This is not a claim that vendor Fortran datatype handles are interchangeable.
+
+Default LOGICAL is **not** aliased to one-byte `MPI_C_BOOL`. Its exact true and
+false byte patterns come from the selected compiler. Native profiles transmit
+its 1/2/4/8-byte storage with the corresponding C integer type and use three
+small user operations for LAND/LOR/LXOR. These operations produce those exact
+literal patterns and work with the existing direct collective calls, including
+in-place and scan variants. Other logical reductions are rejected.
+
+The native operations are released by a private `MPI_COMM_SELF` attribute
+registered before binding `MPI_Init` or `MPI_Init_thread` returns. MPI deletes
+SELF attributes in reverse set order, so application finalization callbacks can
+still use the operations before this internal cleanup runs. Initialization
+failure removes the attribute and releases its key and operations immediately.
+Handle bookkeeping stays live through the callbacks and is freed only after
+C `MPI_Finalize` succeeds; that last cleanup makes no MPI calls.
+
+MPI-ABI profiles retain the ABI's Fortran datatypes. Initialization queries
+`MPI_Abi_get_fortran_info` and `MPI_Abi_get_fortran_booleans`; it supplies the
+selected compiler's properties only when unregistered. Existing registration
+must agree for the exposed types and booleans. It is never blindly overwritten.
+The MPI-5 type-registration interface allows this path to use a C-only runtime.
+
+## Constants and errors
+
+Native error-class parameters are emitted from the selected **C header** by a
+small scalar program, without `MPI_Init` or handle conversion. The output is
+an owned Fortran include compiled into the private constants module.
+Optional-name probes are C compile checks with a required MPI_SUCCESS control.
+Their diagnostics/availability live under `mpi-constant-checks/`. Missing names
+stay unavailable; no numeric aliases are invented. The ABI profile retains
+its specified error parameters.
+
+The emitter is target code. Native builds execute it directly; cross builds
+must supply `FORTRAN_MPI_TARGET_RUNNER` when target code cannot run locally.
+Execution failure is an error, never a fallback to host constants. All public
+parameters remain usable in constant expressions before initialization.
+
+Error codes, classes and defined status error fields are in one selected C MPI
+domain. `MPI_Error_class` returns its result unchanged; `MPI_Error_string`
+accepts both detailed codes and class constants/results and preserves C message
+bytes and length. Classify detailed errors before comparing them with classes.
+`MPI_ERR_LASTCODE` remains a bound, not a class to query. Error queries before
+initialization and after finalization do not need the handle registry.
+
+## Statuses, scalars and sentinels
+
+`MPI_STATUS_SIZE=8`, `MPI_SOURCE=1`, `MPI_TAG=2`, `MPI_ERROR=3` are binding-owned
+parameters. Native packing places public fields first and packs the remaining
+C status bytes, including count/cancellation data, in the remaining words.
+`sizeof`/`offsetof` checks reject C layouts that do not fit. Source/tag are
+normalized in both directions; error codes are not. MPI-ABI retains its
+specified direct eight-integer layout.
+
+Native C scratch uses aligned `malloc` storage, sized/strided by
+`sizeof(MPI_Status)`, not by a vendor Fortran status extent. Allocation is
+overflow-checked and every path releases its scratch. Ignore and zero-count
+paths do not allocate or pack statuses. This change does not alter which
+completion errors make statuses defined.
+
+Ranks, tags, undefined counts, comparison results, thread levels and split
+types use the existing scalar translation helpers. Request indices are
+translated from C's zero-based indices to Fortran's one-based indices.
+
+`MPI_IN_PLACE`, `MPI_STATUS_IGNORE` and `MPI_STATUSES_IGNORE` are binding-owned
+target objects recognized by address, never by their contents. C receives its
+own corresponding sentinel addresses.
+
+## Regression coverage
+
+The normal/optimized profile matrix, POT3D and 1/2/4-rank selections are retained.
+Standard Fortran tests also run with vendor `mpif90`.
+
+- `adapter_lifecycle_1` checks both directions of the explicit C boundary,
+  predefined/null and created/imported identity, retirement and repeated reuse.
+- `owned_handle_status_1` checks group/datatype/request lifetimes, incomplete
+  Test, Wait/Test arrays, owned statuses/counts and untouched guard words.
+- `logical_representation_1` checks exact literal patterns for all three
+  logical operations, in-place reductions, integer(8) and double complex.
+- `finalize_callbacks_1` checks logical reductions in early and final SELF
+  delete callbacks, with both `MPI_Init` and `MPI_Init_thread` at 1/2/4 ranks.
+- Existing error-class/oracle, datatype, group, request and sentinel tests
+  remain registered.
+- `test-constant-headers` poisons every vendor Fortran header name and checks
+  the archive for forbidden handle/status conversion dependencies. It runs
+  the scalar constant emitter but no MPI program.
+
+The unchanged `native_handle_status_1` and raw-HDF5 fixture remain **vendor
+controls**, not provided-mode claims. Provided HDF5 applications must use the
+public adapter; their application-level qualification is separate from these
+standalone tests.
+
+## Extending the binding
+
+For a new routine:
+
+1. Add its exact C prototype as a `BIND(C)` interface in `mpi_c_bindings.f90`.
+   C handles use `integer(kind=MPI_HANDLE_KIND), value`; buffers use
+   `type(c_ptr), value`.
+2. Add one module procedure in `mpi.f90`. Buffers use `type(*), dimension(..),
+   target`; blocking calls add `contiguous`, and nonblocking calls add
+   `asynchronous` and reject noncontiguous actuals.
+3. Validate input tokens before entering C. For a newly returned object,
+   reserve storage before the MPI call and save the result only on success.
+   For an inout/free/completion handle, update its existing mapping instead.
+4. Translate ranks/tags/statuses in both directions, recognize allowed
+   in-place/ignore sentinels by address, and pass native errors to `set_ierror`.
+5. Add a standard Fortran test under `tests/`, runnable with vendor `mpif90`.
+   Adapter-specific tests additionally have an explicit provided-only branch.
+
+For a new constant, add its owned predefined ID and typed C table entry,
+or extend the C scalar emitter and optional-name probe for an error class.
+Never copy observed native handle numbers or normalize error classes into
+a second domain. Add constant-expression and behavior tests.
+
+Assumed-type/assumed-rank buffers require a Fortran 2018 compiler: gfortran,
+flang, ifx, or LFortran 0.69 or newer (including lfortran/lfortran#16101,
+#17132 and #17133).
 
 ## Known deviations
 
-- Error codes are compared with error classes only through
-  `MPI_Error_class`. Code that compares `ierror` directly with `MPI_ERR_*`
-  works only when the native code equals the ABI class.
 - There are no user-defined error handlers or error classes.
-- The buffer of a nonblocking routine must be contiguous; the program stops
-  otherwise. With the vendors' `mpi` module, the compiler may pass a
-  temporary copy instead, which MPI then uses after it is gone.
+- A noncontiguous buffer for a nonblocking routine is rejected rather than
+  passed through a temporary whose lifetime ends before completion.

@@ -4,16 +4,17 @@ set -ex
 POT3D_HOME=$PWD
 # we can provide first argument to decide which test case we want to run to validate.sh script
 TEST="${1:-validation}"
-MPIEXEC=${CONDA_PREFIX}/bin/mpiexec
+PREFIX=${FORTRAN_MPI_PREFIX:-$CONDA_PREFIX}
+MPIEXEC=$PREFIX/bin/mpiexec
 
 cp ${POT3D_HOME}/testsuite/${TEST}/input/* ${POT3D_HOME}/testsuite/${TEST}/run/
 cd ${POT3D_HOME}/testsuite/${TEST}/run
 
-# detect MPI implementation
+# detect MPI implementation from the selected C headers
 MPI_VERSION=$($MPIEXEC --version 2>&1)
-if echo "$MPI_VERSION" | grep -q "Open MPI"; then
+if grep -q 'OMPI_MAJOR_VERSION' "$PREFIX/include/mpi.h"; then
   MPI_TYPE="openmpi"
-elif echo "$MPI_VERSION" | grep -q "MPICH"; then
+elif grep -q 'MPICH_VERSION' "$PREFIX/include/mpi.h"; then
   MPI_TYPE="mpich"
 else
   # we don't yet support other MPI implementations
